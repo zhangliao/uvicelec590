@@ -17,16 +17,12 @@ static void add_and_commit(git_repository *repo)
 	strs[0] = "*";
 	paths.strings = strs;
 	paths.count   = 1;
-
 	
 	if (git_signature_now(&sig, "zhangliao", "zhangliao1212@hotmail.com") < 0)
 		printf("Unable to signature\n");
 	
 	if (git_repository_index(&index, repo) < 0)
 		printf("Could not open repository index\n");
-	
-	//if (git_index_add_bypath(index, "bbb.c") < 0)
-	//	printf("Could not add file to index\n");
 	
 	if (git_index_add_all(index, &paths, 0, NULL, NULL) < 0)
 		printf("Could not add all file to index\n");
