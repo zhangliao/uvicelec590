@@ -1,0 +1,4 @@
+new_init.c : Initialize a new repository. Set the username and email and do a initialize commit.
+addcommit.c : Add all the files under the working directory and do a commit.
+
+No input parameters for the above two program. Just compile and run.
