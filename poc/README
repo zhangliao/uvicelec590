@@ -1,6 +1,6 @@
 new_init.c : Initialize a new repository. Set the username and email and do a initialize commit.
 addcommit.c : Add all the files under the working directory and do a commit.
-checkout.c : Checkout a file with a certain version
+checkout.c : Checkout a file or a directory to a certain version
 
 No input parameters for the new_init & addcommit. Just compile and run.
-For checkout.c, type checkout filename commit_sha to rollback and checkout the file to a certain version.
+For checkout.c, type checkout file_name/directory_name commit_sha to rollback and checkout the file or a directory to a certain version.
