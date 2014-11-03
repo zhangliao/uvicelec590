@@ -2,7 +2,9 @@ new_init.c : Initialize a new repository. Set the username and email and do a in
 addcommit.c : Add all the files under the working directory and do a commit.
 checkout.c : Checkout a file or a directory to a certain version.
 register.c : GUI for register a new user. 
+elec590_ofs : The anjuta project directory used to generate the main windows of the OFS client GUI (Login or Register).
 
 No input parameters for the new_init & addcommit. Just compile and run.
 For checkout.c, type checkout file_name/directory_name commit_sha to rollback and checkout the file or a directory to a certain version.
 Please use : gcc `pkg-config --cflags gtk+-3.0` register.c -o register `pkg-config --libs gtk+-3.0` to compile the register.c.
+Please use anjuta and glade to open and compile the elec590_ofs.
