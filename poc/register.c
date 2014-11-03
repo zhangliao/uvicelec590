@@ -55,6 +55,8 @@ int main (int argc, char *argv[])
   /* Create the necessary widgets for the page[2]. */
   label_password = gtk_label_new ("Your Passowrd: ");
   entry_password = gtk_entry_new ();
+  gtk_entry_set_visibility(GTK_ENTRY(entry_password),FALSE);
+  gtk_entry_set_invisible_char (GTK_ENTRY(entry_password),'*');
   gtk_box_pack_start (GTK_BOX (page[2].widget), label_password, FALSE, FALSE, 5);
   gtk_box_pack_start (GTK_BOX (page[2].widget), entry_password, FALSE, FALSE, 5);
   
