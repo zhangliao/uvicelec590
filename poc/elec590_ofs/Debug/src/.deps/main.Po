@@ -1,5 +1,5 @@
 main.o: /home/liaoz/elec590_ofs/src/main.c /usr/include/stdc-predef.h \
- ../config.h /usr/include/gtk-3.0/gtk/gtk.h \
+ /home/liaoz/elec590_ofs/src/config.h /usr/include/gtk-3.0/gtk/gtk.h \
  /usr/include/gtk-3.0/gdk/gdk.h /usr/include/gtk-3.0/gdk/gdkconfig.h \
  /usr/include/glib-2.0/glib.h /usr/include/glib-2.0/glib/galloca.h \
  /usr/include/glib-2.0/glib/gtypes.h \
@@ -575,7 +575,7 @@ main.o: /home/liaoz/elec590_ofs/src/main.c /usr/include/stdc-predef.h \
 
 /usr/include/stdc-predef.h:
 
-../config.h:
+/home/liaoz/elec590_ofs/src/config.h:
 
 /usr/include/gtk-3.0/gtk/gtk.h:
 

@@ -34,8 +34,7 @@ int main (int argc, char *argv[])
   gtk_widget_set_size_request (assistant, 450, 300);
   gtk_window_set_title (GTK_WINDOW (assistant), "ELEC590 OFS New User Register");
   gtk_window_set_position(GTK_WINDOW(assistant), GTK_WIN_POS_CENTER);
-  g_signal_connect (G_OBJECT (assistant), "destroy",
-                    G_CALLBACK (gtk_main_quit), NULL);
+  g_signal_connect (G_OBJECT (assistant), "destroy",G_CALLBACK (gtk_main_quit), NULL);
   
   page[0].widget = gtk_label_new ("ELEC590 OFS new user register.\n"\
                                   "Please input your username and password.\n"\
@@ -60,8 +59,7 @@ int main (int argc, char *argv[])
   gtk_box_pack_start (GTK_BOX (page[2].widget), label_password, FALSE, FALSE, 5);
   gtk_box_pack_start (GTK_BOX (page[2].widget), entry_password, FALSE, FALSE, 5);
   
-  /* Create the necessary widgets for the fourth page. The, Attach the progress bar
-   * to the GtkAlignment widget for later access.*/
+  /* Create the necessary widgets for the fourth page. The, Attach the progress bar to the GtkAlignment widget for later access.*/
   button = gtk_button_new_with_label ("Click me to get an SSH certification!");
   progress = gtk_progress_bar_new ();
   hbox = gtk_box_new (FALSE, 5);
@@ -73,42 +71,27 @@ int main (int argc, char *argv[])
   /* Add five pages to the GtkAssistant dialog. */
   for (i = 0; i < 5; i++)
   {
-    page[i].index = gtk_assistant_append_page (GTK_ASSISTANT (assistant),
-                                               page[i].widget);
-    gtk_assistant_set_page_title (GTK_ASSISTANT (assistant),
-                                  page[i].widget, page[i].title);
-    gtk_assistant_set_page_type (GTK_ASSISTANT (assistant),
-                                  page[i].widget, page[i].type);
+    page[i].index = gtk_assistant_append_page (GTK_ASSISTANT (assistant),page[i].widget);
+    gtk_assistant_set_page_title (GTK_ASSISTANT (assistant),page[i].widget, page[i].title);
+    gtk_assistant_set_page_type (GTK_ASSISTANT (assistant),page[i].widget, page[i].type);
 
-    /* Set the introduction and conclusion pages as complete so they can be
-     * incremented or closed. */
-    gtk_assistant_set_page_complete (GTK_ASSISTANT (assistant),
-                                     page[i].widget, page[i].complete);
+  /* Set the introduction and conclusion pages as complete so they can be incremented or closed. */
+    gtk_assistant_set_page_complete (GTK_ASSISTANT (assistant),page[i].widget, page[i].complete);
   }
   
-  /* Update whether pages 2 through 4 are complete based upon whether there is
-   * text in the GtkEntry, the check button is active, or the progress bar
-   * is completely filled. */
-  g_signal_connect (G_OBJECT (entry_username), "changed",
-                    G_CALLBACK (entry_changed), (gpointer) assistant);
-  g_signal_connect (G_OBJECT (entry_password), "changed",
-                    G_CALLBACK (entry_changed), (gpointer) assistant);
-  g_signal_connect (G_OBJECT (button), "clicked",
-                    G_CALLBACK (button_clicked), (gpointer) assistant);
-  g_signal_connect (G_OBJECT (assistant), "cancel",
-                    G_CALLBACK (assistant_cancel), NULL);
-  g_signal_connect (G_OBJECT (assistant), "close",
-                    G_CALLBACK (assistant_close), NULL);
+  /* Update whether pages 2 through 4 are complete based upon whether there is text in the GtkEntry, the check button is active, or the progress bar is completely filled. */
+  g_signal_connect (G_OBJECT (entry_username), "changed", G_CALLBACK (entry_changed), (gpointer) assistant);
+  g_signal_connect (G_OBJECT (entry_password), "changed", G_CALLBACK (entry_changed), (gpointer) assistant);
+  g_signal_connect (G_OBJECT (button), "clicked", G_CALLBACK (button_clicked), (gpointer) assistant);
+  g_signal_connect (G_OBJECT (assistant), "cancel", G_CALLBACK (assistant_cancel), NULL);
+  g_signal_connect (G_OBJECT (assistant), "close", G_CALLBACK (assistant_close), NULL);
   gtk_widget_show_all (assistant);
   gtk_main ();
   return 0;
 }
 
-/* If there is text in the GtkEntry, set the page as complete. Otherwise,
- * stop the user from progressing the next page. */
-static void
-entry_changed (GtkEditable *entry,
-               GtkAssistant *assistant)
+/* If there is text in the GtkEntry, set the page as complete. Otherwise, stop the user from progressing the next page. */
+static void	entry_changed (GtkEditable *entry,GtkAssistant *assistant)
 {
   const gchar *text = gtk_entry_get_text (GTK_ENTRY (entry));
   gint num = gtk_assistant_get_current_page (assistant);
@@ -116,21 +99,15 @@ entry_changed (GtkEditable *entry,
   gtk_assistant_set_page_complete (assistant, page, (strlen (text) > 0));
 }
 
-/* If the check button is toggled, set the page as complete. Otherwise,
- * stop the user from progressing the next page. */
-static void
-button_toggled (GtkCheckButton *toggle,
-                GtkAssistant *assistant)
+/* If the check button is toggled, set the page as complete. Otherwise, stop the user from progressing the next page. */
+static void	button_toggled (GtkCheckButton *toggle, GtkAssistant *assistant)
 {
   gboolean active = gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (toggle));
   gtk_assistant_set_page_complete (assistant, GTK_WIDGET (toggle), active);
 }
 
-/* Fill up the progress bar, 10% every second when the button is clicked. Then,
- * set the page as complete when the progress bar is filled. */
-static void
-button_clicked (GtkButton *button,
-                GtkAssistant *assistant)
+/* Fill up the progress bar, 10% every second when the button is clicked. Then, set the page as complete when the progress bar is filled. */
+static void	button_clicked (GtkButton *button, GtkAssistant *assistant)
 {
   GtkProgressBar *progress;
   GtkWidget *page;
@@ -152,23 +129,17 @@ button_clicked (GtkButton *button,
     g_usleep (500000);
     percent += 20.0;
   }
-  
-  gtk_assistant_set_page_complete (assistant, page, TRUE);
+    gtk_assistant_set_page_complete (assistant, page, TRUE);
 }
 
-/* If the dialog is cancelled, delete it from memory and then clean up after
- * the Assistant structure. */
-static void
-assistant_cancel (GtkAssistant *assistant,
-                  gpointer data)
+/* If the dialog is cancelled, delete it from memory and then clean up after the Assistant structure. */
+static void	assistant_cancel (GtkAssistant *assistant, gpointer data)
 {
   gtk_widget_destroy (GTK_WIDGET (assistant));
 }
 
 /* This function is where you would apply the changes and destroy the assistant. */
-static void
-assistant_close (GtkAssistant *assistant,
-                 gpointer data)
+static void	assistant_close (GtkAssistant *assistant, gpointer data)
 {
   g_print ("You would apply your changes now!\n");
   gtk_widget_destroy (GTK_WIDGET (assistant));
