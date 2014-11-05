@@ -22,6 +22,9 @@ bin_PROGRAMS = elec590_ofs
 elec590_ofs_SOURCES = \
 	main.c
 
+elec590_ofs_CFLAGS = -lssl \
+	-lcrypto 
+
 
 elec590_ofs_LDFLAGS = \
 	-Wl,--export-dynamic

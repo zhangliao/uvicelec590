@@ -19,10 +19,44 @@
 
 #include </home/liaoz/elec590_ofs/src/config.h>
 #include <gtk/gtk.h>
-
-
 #include <glib/gi18n.h>
 #include <string.h>
+#include<stdio.h>  
+#include<stdlib.h>  
+#include<string.h>  
+#include<unistd.h>  
+  
+#include<sys/types.h>  
+#include<sys/socket.h>  
+#include<sys/sendfile.h>  
+#include<netinet/in.h>  
+#include<arpa/inet.h>  
+  
+#include<sys/stat.h>  
+#include<fcntl.h>  
+  
+#include<errno.h>  
+#include <openssl/ssl.h>
+#include <openssl/err.h>  
+#define oops(msg) { perror(msg); exit(errno); }  
+void ShowCerts(SSL * ssl)
+{
+	X509 *cert;
+	char *line;
+	cert = SSL_get_peer_certificate(ssl);
+	if (cert != NULL) {
+		printf("Digital Certification Information:\n");
+		line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
+		printf("Certification: %s\n", line);
+		free(line);
+		line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
+		printf("Issuer: %s\n", line);
+		free(line);
+		X509_free(cert);
+	} 
+	else
+		printf("无证书信息！\n");
+}
 
 static void entry_changed    (GtkEditable*, GtkAssistant*);
 //static void button_toggled   (GtkCheckButton*, GtkAssistant*);
@@ -39,7 +73,14 @@ typedef struct {
   gboolean complete;
 } PageInfo;
 
+typedef struct {
+	char username[100];
+	char password[100];
+	char directory[200];
+} reginfo;
 
+reginfo userinfo;
+SSL *ssl;
 typedef struct _Private Private;
 struct _Private
 {
@@ -74,6 +115,17 @@ static void	entry_changed (GtkEditable *entry,GtkAssistant *assistant)
 {
   const gchar *text = gtk_entry_get_text (GTK_ENTRY (entry));
   gint num = gtk_assistant_get_current_page (assistant);
+  //printf("Page Num:%d\n",num);
+  //printf("Entry:%s\n",text);
+  switch( num ) 
+  {
+    case 1:
+          strcpy(userinfo.username,text);
+    case 2:
+          strcpy(userinfo.password,text);
+	case 4:
+          strcpy(userinfo.directory,text);
+  }
   GtkWidget *page = gtk_assistant_get_nth_page (assistant, num);
   gtk_assistant_set_page_complete (assistant, page, (strlen (text) > 0));
 }
@@ -91,9 +143,10 @@ static void	button_clicked (GtkButton *button, GtkAssistant *assistant)
   GtkProgressBar *progress;
   GtkWidget *page;
   gdouble percent = 0.0;
-  
+  strcat(userinfo.username,"\0");
+  	SSL_write(ssl,userinfo.username,strlen(userinfo.username));
   gtk_widget_set_sensitive (GTK_WIDGET (button), FALSE);
-  page = gtk_assistant_get_nth_page (assistant, 3);
+  page = gtk_assistant_get_nth_page (assistant, 4);
   progress = GTK_PROGRESS_BAR (g_object_get_data (G_OBJECT (page), "pbar"));
   
   while (percent <= 100.0)
@@ -109,22 +162,25 @@ static void	button_clicked (GtkButton *button, GtkAssistant *assistant)
     percent += 20.0;
   }
     gtk_assistant_set_page_complete (assistant, page, TRUE);
+
 }
 
 void Click_Register(GtkWidget *widget, gpointer label1)
 {  
-	GtkWidget *assistant, *entry_username, *label_username, *button, *progress,*entry_password, *label_password, *hbox;
+	GtkWidget *assistant, *entry_username, *label_username, *button, *progress,*entry_password, *label_password, *entry_directory, *label_directory,*hbox;
 	guint i;
-	PageInfo page[5] = {
+	PageInfo page[6] = {
     { NULL, -1, "Introduction",    GTK_ASSISTANT_PAGE_INTRO,    TRUE},//page[0]
     { NULL, -1, "Username", 	   GTK_ASSISTANT_PAGE_CONTENT,  FALSE},//page[1]
 	{ NULL, -1, "Password",        GTK_ASSISTANT_PAGE_CONTENT,  FALSE},//page[2]
-    { NULL, -1, "Click the Button",GTK_ASSISTANT_PAGE_PROGRESS, FALSE},//page[3]
-    { NULL, -1, "Confirmation",    GTK_ASSISTANT_PAGE_CONFIRM,  TRUE},//page[4]
+	{ NULL, -1, "Directory",	   GTK_ASSISTANT_PAGE_CONTENT, FALSE},//page[3]
+	{ NULL, -1, "Processing",      GTK_ASSISTANT_PAGE_PROGRESS, FALSE},//page[4]
+    { NULL, -1, "Confirmation",    GTK_ASSISTANT_PAGE_CONFIRM,  TRUE},//page[5]
 };
 	  /* Create a new assistant widget with no pages. */
   assistant = gtk_assistant_new ();
   gtk_widget_set_size_request (assistant, 450, 300);
+  gtk_widget_hide (window);
   gtk_window_set_title (GTK_WINDOW (assistant), "ELEC590 OFS New User Register");
   gtk_window_set_position(GTK_WINDOW(assistant), GTK_WIN_POS_CENTER);
   g_signal_connect (G_OBJECT (assistant), "destroy",G_CALLBACK (gtk_main_quit), NULL);
@@ -135,14 +191,16 @@ void Click_Register(GtkWidget *widget, gpointer label1)
 								  "Storage Capacity will be allocated automatically for you.\n");
   page[1].widget = gtk_box_new (FALSE, 5);
   page[2].widget = gtk_box_new (FALSE, 5);
-  page[3].widget = gtk_alignment_new (0.5, 0.5, 0.0, 0.0);
-  page[4].widget = gtk_label_new ("Register successfully!\n");
+  page[3].widget = gtk_box_new (FALSE, 5);
+  page[4].widget = gtk_alignment_new (0.5, 0.5, 0.0, 0.0);
+  page[5].widget = gtk_label_new ("Register successfully!\n");
   
   /* Create the necessary widgets for the page[1]. */
   label_username = gtk_label_new ("Your Username: ");
   entry_username = gtk_entry_new ();
   gtk_box_pack_start (GTK_BOX (page[1].widget), label_username, FALSE, FALSE, 5);
   gtk_box_pack_start (GTK_BOX (page[1].widget), entry_username, FALSE, FALSE, 5);
+
   
   /* Create the necessary widgets for the page[2]. */
   label_password = gtk_label_new ("Your Passowrd: ");
@@ -152,17 +210,25 @@ void Click_Register(GtkWidget *widget, gpointer label1)
   gtk_box_pack_start (GTK_BOX (page[2].widget), label_password, FALSE, FALSE, 5);
   gtk_box_pack_start (GTK_BOX (page[2].widget), entry_password, FALSE, FALSE, 5);
   
-  /* Create the necessary widgets for the fourth page. The, Attach the progress bar to the GtkAlignment widget for later access.*/
-  button = gtk_button_new_with_label ("Click me to get an SSH certification!");
+  /* Create the necessary widgets for the page[3]. The, Attach the progress bar to the GtkAlignment widget for later access.*/
+  label_directory = gtk_label_new ("Your Directory: ");
+  entry_directory = gtk_entry_new ();
+  gtk_box_pack_start (GTK_BOX (page[3].widget), label_directory, FALSE, FALSE, 5);
+  gtk_box_pack_start (GTK_BOX (page[3].widget), entry_directory, FALSE, FALSE, 5);
+  
+
+  /* Create the necessary widgets for the page[4]. */
+  button = gtk_button_new_with_label ("Server Processing");
   progress = gtk_progress_bar_new ();
   hbox = gtk_box_new (FALSE, 5);
   gtk_box_pack_start (GTK_BOX (hbox), progress, TRUE, FALSE, 5);
   gtk_box_pack_start (GTK_BOX (hbox), button, FALSE, FALSE, 5);
-  gtk_container_add (GTK_CONTAINER (page[3].widget), hbox);
-  g_object_set_data (G_OBJECT (page[3].widget), "pbar", (gpointer) progress);
-  
+  gtk_container_add (GTK_CONTAINER (page[4].widget), hbox);
+  g_object_set_data (G_OBJECT (page[4].widget), "pbar", (gpointer) progress);
+
+
   /* Add five pages to the GtkAssistant dialog. */
-  for (i = 0; i < 5; i++)
+  for (i = 0; i < 6; i++)
   {
     page[i].index = gtk_assistant_append_page (GTK_ASSISTANT (assistant),page[i].widget);
     gtk_assistant_set_page_title (GTK_ASSISTANT (assistant),page[i].widget, page[i].title);
@@ -175,6 +241,7 @@ void Click_Register(GtkWidget *widget, gpointer label1)
   /* Update whether pages 2 through 4 are complete based upon whether there is text in the GtkEntry, the check button is active, or the progress bar is completely filled. */
   g_signal_connect (G_OBJECT (entry_username), "changed", G_CALLBACK (entry_changed), (gpointer) assistant);
   g_signal_connect (G_OBJECT (entry_password), "changed", G_CALLBACK (entry_changed), (gpointer) assistant);
+  g_signal_connect (G_OBJECT (entry_directory), "changed", G_CALLBACK (entry_changed), (gpointer) assistant);
   g_signal_connect (G_OBJECT (button), "clicked", G_CALLBACK (button_clicked), (gpointer) assistant);
   g_signal_connect (G_OBJECT (assistant), "cancel", G_CALLBACK (assistant_cancel), NULL);
   g_signal_connect (G_OBJECT (assistant), "close", G_CALLBACK (assistant_close), NULL);
@@ -251,7 +318,7 @@ main (int argc, char *argv[])
 	textdomain (GETTEXT_PACKAGE);
 #endif
 	
-	gtk_init (&argc, &argv);
+		gtk_init (&argc, &argv);
 
 	window = create_window ();
 	gtk_widget_show (window);
@@ -260,7 +327,52 @@ main (int argc, char *argv[])
 
 
 
-	gtk_main ();
+		
+	
+		int sd = socket(PF_INET, SOCK_STREAM, 0);  
+        if(sd == -1) oops("socket");  
+  
+        struct sockaddr_in address;  
+        bzero(&address, sizeof(address));  
+        address.sin_family = AF_INET;  
+        address.sin_addr.s_addr = inet_addr("192.168.0.1");  
+        address.sin_port =  8888;  
+		
+		SSL_CTX *ctx;
+		
+		
+		/* SSL 库初始化，参看 ssl-server.c 代码 */
+		SSL_library_init();
+		OpenSSL_add_all_algorithms();
+		SSL_load_error_strings();
+		ctx = SSL_CTX_new(SSLv23_client_method());
+		if (ctx == NULL) {
+			ERR_print_errors_fp(stdout);
+			exit(1);
+		}
+		
+		
+        int connect_ret = connect(sd, (struct sockaddr*)&address, sizeof(address));  
+        if(connect_ret == -1) oops("connect");  
+		
+		/* 基于 ctx 产生一个新的 SSL */
+		ssl = SSL_new(ctx);
+		SSL_set_fd(ssl, sd);
+		
+		/* 建立 SSL 连接 */
+		if (SSL_connect(ssl) == -1)
+			ERR_print_errors_fp(stderr);
+		else {
+			printf("Connected with %s encryption\n", SSL_get_cipher(ssl));
+			ShowCerts(ssl);
+		}
+		
+
+		gtk_main ();
+  
+        close(sd);  
+        return EXIT_SUCCESS;  
+		
 
 
 	g_free (priv);
@@ -280,5 +392,8 @@ static void	assistant_cancel (GtkAssistant *assistant, gpointer data)
 static void	assistant_close (GtkAssistant *assistant, gpointer data)
 {
   g_print ("You would apply your changes now!\n");
+  printf("Username:%s\n",userinfo.username);
+  printf("Passowrd:%s\n",userinfo.password);
+  printf("Directory:%s\n",userinfo.directory);
   gtk_widget_destroy (GTK_WIDGET (assistant));
 }

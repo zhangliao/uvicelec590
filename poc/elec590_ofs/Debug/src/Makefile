@@ -93,7 +93,7 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(uidir)"
 PROGRAMS = $(bin_PROGRAMS)
-am_elec590_ofs_OBJECTS = main.$(OBJEXT)
+am_elec590_ofs_OBJECTS = elec590_ofs-main.$(OBJEXT)
 elec590_ofs_OBJECTS = $(am_elec590_ofs_OBJECTS)
 am__DEPENDENCIES_1 =
 elec590_ofs_DEPENDENCIES = $(am__DEPENDENCIES_1)
@@ -102,8 +102,8 @@ am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
 am__v_lt_0 = --silent
 am__v_lt_1 = 
 elec590_ofs_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(elec590_ofs_LDFLAGS) $(LDFLAGS) -o $@
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(elec590_ofs_CFLAGS) \
+	$(CFLAGS) $(elec590_ofs_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_$(V))
 am__v_P_ = $(am__v_P_$(AM_DEFAULT_VERBOSITY))
 am__v_P_0 = false
@@ -356,6 +356,9 @@ AM_CFLAGS = \
 elec590_ofs_SOURCES = \
 	main.c
 
+elec590_ofs_CFLAGS = -lssl \
+	-lcrypto 
+
 elec590_ofs_LDFLAGS = \
 	-Wl,--export-dynamic
 
@@ -455,7 +458,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-include ./$(DEPDIR)/main.Po
+include ./$(DEPDIR)/elec590_ofs-main.Po
 
 .c.o:
 	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -477,6 +480,20 @@ include ./$(DEPDIR)/main.Po
 #	$(AM_V_CC)source='$<' object='$@' libtool=yes \
 #	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) \
 #	$(AM_V_CC_no)$(LTCOMPILE) -c -o $@ $<
+
+elec590_ofs-main.o: main.c
+	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(elec590_ofs_CFLAGS) $(CFLAGS) -MT elec590_ofs-main.o -MD -MP -MF $(DEPDIR)/elec590_ofs-main.Tpo -c -o elec590_ofs-main.o `test -f 'main.c' || echo '$(srcdir)/'`main.c
+	$(AM_V_at)$(am__mv) $(DEPDIR)/elec590_ofs-main.Tpo $(DEPDIR)/elec590_ofs-main.Po
+#	$(AM_V_CC)source='main.c' object='elec590_ofs-main.o' libtool=no \
+#	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) \
+#	$(AM_V_CC_no)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(elec590_ofs_CFLAGS) $(CFLAGS) -c -o elec590_ofs-main.o `test -f 'main.c' || echo '$(srcdir)/'`main.c
+
+elec590_ofs-main.obj: main.c
+	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(elec590_ofs_CFLAGS) $(CFLAGS) -MT elec590_ofs-main.obj -MD -MP -MF $(DEPDIR)/elec590_ofs-main.Tpo -c -o elec590_ofs-main.obj `if test -f 'main.c'; then $(CYGPATH_W) 'main.c'; else $(CYGPATH_W) '$(srcdir)/main.c'; fi`
+	$(AM_V_at)$(am__mv) $(DEPDIR)/elec590_ofs-main.Tpo $(DEPDIR)/elec590_ofs-main.Po
+#	$(AM_V_CC)source='main.c' object='elec590_ofs-main.obj' libtool=no \
+#	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) \
+#	$(AM_V_CC_no)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(elec590_ofs_CFLAGS) $(CFLAGS) -c -o elec590_ofs-main.obj `if test -f 'main.c'; then $(CYGPATH_W) 'main.c'; else $(CYGPATH_W) '$(srcdir)/main.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
