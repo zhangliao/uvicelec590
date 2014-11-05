@@ -1,8 +1,14 @@
+server.c/client.c : CS with SSL file transfer.
 new_init.c : Initialize a new repository. Set the username and email and do a initialize commit.
 addcommit.c : Add all the files under the working directory and do a commit.
 checkout.c : Checkout a file or a directory to a certain version.
 register.c : GUI for register a new user. 
 elec590_ofs : The anjuta project directory used to generate the main windows of the OFS client GUI (Login or Register).The latest version combine the main window with the assistant window.
+auth.c : Check the OS username and password.
+getver.c : Get the commid sha of a single file.
+init_user.c : Create a new linux OS user, set the password and home directory.
+gtkex.c : The GUI of the main file manager window.
+
 
 No input parameters for the new_init & addcommit. Just compile and run.
 For checkout.c, type checkout file_name/directory_name commit_sha to rollback and checkout the file or a directory to a certain version.
