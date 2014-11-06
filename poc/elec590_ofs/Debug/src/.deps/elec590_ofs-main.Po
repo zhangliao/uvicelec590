@@ -616,7 +616,10 @@ elec590_ofs-main.o: /home/liaoz/elec590_ofs/src/main.c \
  /usr/include/openssl/ssl3.h /usr/include/openssl/tls1.h \
  /usr/include/openssl/dtls1.h /usr/include/openssl/pqueue.h \
  /usr/include/x86_64-linux-gnu/sys/time.h /usr/include/openssl/ssl23.h \
- /usr/include/openssl/srtp.h /usr/include/openssl/err.h
+ /usr/include/openssl/srtp.h /usr/include/openssl/err.h \
+ /usr/include/libssh/libssh.h /usr/include/inttypes.h \
+ /usr/include/netdb.h /usr/include/rpc/netdb.h \
+ /usr/include/x86_64-linux-gnu/bits/netdb.h /usr/include/libssh/legacy.h
 
 /usr/include/stdc-predef.h:
 
@@ -2013,3 +2016,15 @@ elec590_ofs-main.o: /home/liaoz/elec590_ofs/src/main.c \
 /usr/include/openssl/srtp.h:
 
 /usr/include/openssl/err.h:
+
+/usr/include/libssh/libssh.h:
+
+/usr/include/inttypes.h:
+
+/usr/include/netdb.h:
+
+/usr/include/rpc/netdb.h:
+
+/usr/include/x86_64-linux-gnu/bits/netdb.h:
+
+/usr/include/libssh/legacy.h:

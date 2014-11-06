@@ -24,15 +24,18 @@ typedef struct {
 	char username[100];
 	char password[100];
 	char directory[200];
+	char operation[10];
 } reginfo;
 
 reginfo userinfo;  
 git_repository *repo = NULL;
-int create_user(char *username, char *password );
+int create_user(char *username, char *password, char *directory );
 int create_repository(char *username);
 static void create_initial_commit(git_repository *repo,char *username);
 int main(){  
-		
+		FILE *fp;
+		char dirfile[100];
+		char *localdir;
 		SSL_CTX *ctx;
 
 		SSL_library_init();/* SSL ø‚≥ı ºªØ */
@@ -74,7 +77,9 @@ int main(){
         address.sin_family = AF_INET;  
         address.sin_addr.s_addr = inet_addr("192.168.0.1");  
         address.sin_port =  8888;  
-  
+		int on=1;
+	
+		setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on));
         int bind_return =  bind(sd, (struct sockaddr *)&address, sizeof(address));  
         if(bind_return == -1) oops("bind");  
   
@@ -83,6 +88,7 @@ int main(){
   
         while(1){
 				SSL *ssl;
+				int length;
                 int client_fd = accept(sd, NULL, NULL);  
                 if(client_fd == -1) oops("accept");  
 				
@@ -97,25 +103,52 @@ int main(){
 					break;
 				}
 							
-                char message[100];  
-				//SSL_read(ssl, message, sizeof(message)-1);
-				SSL_read(ssl, &userinfo, sizeof(userinfo));
-				printf("message is:%s\n",userinfo.username);
-				printf("Passowrd:%s\n",userinfo.password);
-				printf("Directory:%s\n",userinfo.directory);
-				create_user(userinfo.username,userinfo.password);
-				create_repository(userinfo.username);
-				create_initial_commit(repo,userinfo.username);
+                char message[100]; 
+				while(1)
+				{	
+					SSL_read(ssl, &userinfo, sizeof(userinfo));
+					if ( strcmp(userinfo.operation,"LOGIN") == 0 )
+					{	
+						memset(dirfile, 0, sizeof(dirfile) );
+						sprintf(dirfile,"/home/%s/.dirfile",userinfo.username);
+						printf("User %s try to login...\n",userinfo.username);
+						fp = fopen(dirfile,"rb");
+						if (fp)
+						{
+							fseek (fp, 0, SEEK_END);
+							length = ftell (fp);
+							fseek (fp, 0, SEEK_SET);
+							localdir = malloc (length);
+							if (localdir)
+							{
+								fread (localdir, 1, length, fp);
+							}
+							fclose (fp);
+						}
+						printf("user local directory is:%s\n",localdir);
+						SSL_write(ssl, localdir, strlen(localdir));
+					}
+					else if( strcmp(userinfo.operation,"REG") == 0 )
+					{
+						printf("message is:%s\n",userinfo.username);
+						printf("Passowrd:%s\n",userinfo.password);
+						printf("Directory:%s\n",userinfo.directory);
+						create_user(userinfo.username,userinfo.password,userinfo.directory);
+						create_repository(userinfo.username);
+						create_initial_commit(repo,userinfo.username);
+					}
+				}
         }  
         return EXIT_SUCCESS;  
 } 
 
-int create_user(char *username, char *password ){
+int create_user(char *username, char *password ,char *directory ){
 	char command[50];
 	FILE *fp;
     char *hist;
     int  len, pos=0, hl=0, i;
     char c;
+	char dirfile[100];
     fp = fopen( "/etc/passwd", "r" );
     len = (int)strlen( username );
     hist = malloc( len );
@@ -140,13 +173,28 @@ int create_user(char *username, char *password ){
         memmove( hist, hist + 1, len - 1 );
         hist[len-1] = c;
     }
-    printf( "Creating user: %s\n",username);
+	fclose(fp);
+	printf( "Creating user: %s\n",username);
 	sprintf(command,"useradd %s -md /home/%s",username,username);
 	system(command);
 	sprintf(command,"echo %s:%s |chpasswd",username,password);
 	system(command);
 	sprintf(command,"rm -f /home/%s/examples.desktop",username);
 	system(command);
+	
+	char *last;
+	len=strlen(directory); // save length of string
+	last=directory+len-1; // make pos point to last char of string
+	if ( strcmp(last,"/") )
+	{
+		last++;
+		*last = '/';
+	}
+	printf("Directory revised to:%s\n",directory);
+	sprintf(dirfile,"/home/%s/.dirfile",username);
+	fp = fopen(dirfile,"a");
+	fprintf(fp, "%s", directory);
+	fclose(fp);
 	return 0;
 }
 

@@ -23,7 +23,11 @@ elec590_ofs_SOURCES = \
 	main.c
 
 elec590_ofs_CFLAGS = -lssl \
-	-lcrypto 
+	-lcrypto \
+	`pkg-config \
+	--cflags \
+	--libs \
+	libssh` 
 
 
 elec590_ofs_LDFLAGS = \
