@@ -119,7 +119,7 @@ int main(){
 							length = ftell (fp);
 							fseek (fp, 0, SEEK_SET);
 							localdir = malloc (length + 1);
-              memset(localdir, 0, length+1);
+							memset(localdir, 0, length+1);
 							if (localdir)
 							{
 								fread (localdir, 1, length, fp);

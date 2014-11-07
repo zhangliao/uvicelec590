@@ -303,16 +303,17 @@ int Click_Login(GtkWidget *widget){
 	else
 	{
 		printf("Session connected successfully!\n");
+		memset(dirpath, 0, sizeof(dirpath) );
 		ssh_disconnect(my_ssh_session);
 		ssh_free(my_ssh_session);
 		strcpy(loginfo.operation,"LOGIN");
 		SSL_write(ssl,&loginfo,sizeof(loginfo));
-		SSL_read(ssl,dirpath,sizeof(dirpath));
+		SSL_read(ssl,dirpath,sizeof(dirpath)-1);
 		printf("Local directory is:%s\n",dirpath);
 
-		if ( opendir(dirpath) != NULL )
+		if ( opendir(dirpath) )
 		{
-			do_list_store("/home/liaoz/testrep/");
+			do_list_store(dirpath);
 			strcpy(homepath,dirpath);
 		}
 		else
