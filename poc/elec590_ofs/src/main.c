@@ -280,7 +280,7 @@ int Click_Login(GtkWidget *widget){
 	if (rc != SSH_OK)
 	{
 		fprintf(stderr, "Error connecting to server: %s\n",
-				ssh_get_error(my_ssh_session));
+		ssh_get_error(my_ssh_session));
 		ssh_free(my_ssh_session);	
 	}
 	// Verify the server's identity
@@ -546,9 +546,12 @@ static GtkWidget *do_list_store (char *dirpath){
     {
 		GtkWidget *vbox;
 		GtkWidget *hbox;
+		GtkWidget *hbox1;
 		GtkWidget *label;
 		GtkWidget* directory_label;
 		GtkWidget* btn_back;
+		GtkWidget* btn_getcommit;
+		GtkWidget* btn_checkout;
 	
 		/* create file_window, etc */
 		file_window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
@@ -560,6 +563,7 @@ static GtkWidget *do_list_store (char *dirpath){
 	
 		vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 8);
 		hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 8);
+		hbox1 = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 8);
 		gtk_container_add (GTK_CONTAINER (file_window), vbox);
 		gtk_box_pack_start (GTK_BOX (vbox), hbox, FALSE, FALSE, 0);
 		
@@ -580,7 +584,17 @@ static GtkWidget *do_list_store (char *dirpath){
 		gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (sw),GTK_SHADOW_ETCHED_IN);
 		gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (sw),GTK_POLICY_NEVER,GTK_POLICY_AUTOMATIC);
 		gtk_box_pack_start (GTK_BOX (vbox), sw, TRUE, TRUE, 0);
-	
+		gtk_box_pack_start (GTK_BOX (vbox), hbox1, FALSE, FALSE, 0);
+		btn_getcommit = gtk_button_new_from_icon_name ("viewmagfit",GTK_ICON_SIZE_SMALL_TOOLBAR);
+		gtk_button_set_always_show_image ((GtkButton*)btn_getcommit, TRUE);
+		gtk_button_set_label ((GtkButton*)btn_getcommit,"Lookup Versions");
+		gtk_box_pack_start (GTK_BOX (hbox1), btn_getcommit, FALSE, FALSE, 0);
+		btn_checkout = gtk_button_new_from_icon_name ("stock_calc-accept",GTK_ICON_SIZE_SMALL_TOOLBAR);
+		gtk_button_set_always_show_image ((GtkButton*)btn_checkout, TRUE);
+		gtk_button_set_label ((GtkButton*)btn_checkout," Rollback File ");
+
+		gtk_box_pack_start (GTK_BOX (hbox1), btn_checkout, FALSE, FALSE, 0);
+		
 		/* create tree model */
 		model = create_model ((GtkEntry*)directory_entry);
 	
@@ -597,7 +611,9 @@ static GtkWidget *do_list_store (char *dirpath){
 		add_columns (GTK_TREE_VIEW (treeview)); 
 	
 		/* finish & show */
-		gtk_window_set_default_size (GTK_WINDOW (file_window), 280, 250);
+		gtk_window_set_default_size (GTK_WINDOW (file_window), 500, 400);
+		gtk_window_set_position (GTK_WINDOW (file_window),GTK_WIN_POS_CENTER);
+		gtk_widget_hide (window);
 		g_signal_connect (file_window, "delete-event",G_CALLBACK (window_closed), NULL);
 		g_signal_connect(btn_back, "clicked", G_CALLBACK(back_btn_clicked), (gpointer)(directory_entry));
 		g_signal_connect(treeview, "row-activated", G_CALLBACK(file_list_click_handle), (gpointer)(directory_entry));
