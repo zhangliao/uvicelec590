@@ -76,13 +76,32 @@ GtkWidget *window;
 reginfo userinfo;
 reginfo loginfo;
 SSL *ssl;
+static GtkWidget *file_window = NULL;
+static GtkTreeModel *model = NULL;
+static guint timeout = 0;
+char homepath[200] ;
+GtkWidget* directory_entry; 
+GtkWidget *sw;
+GtkWidget *treeview;
+GtkListStore *store;
 static Private* priv = NULL;
+const gchar *list_item_data_key_string="list_item_data_label_string";
+const gchar *list_item_data_key_type="list_item_data_type";
 static void entry_changed    (GtkEditable*, GtkAssistant*);
 static void entry_login_username_changed    (GtkEditable*);
 static void entry_login_password_changed    (GtkEditable*);
 static void button_clicked   (GtkButton*, GtkAssistant*);
+void back_btn_clicked(GtkButton* back_btn, gpointer data);
 static void assistant_cancel (GtkAssistant*, gpointer);
 static void assistant_close  (GtkAssistant*, gpointer);
+static GtkWidget *do_list_store (char *dirpath);
+gint  file_list_click_handle (GtkTreeView *treeview,GtkTreePath *path, GtkTreeViewColumn  *col,gpointer userdata);
+
+enum{ 
+  COLUMN_ICON,
+  COLUMN_NAME,
+  NUM_COLUMNS
+};
 
 void ShowCerts(SSL * ssl){
 	X509 *cert;
@@ -245,6 +264,7 @@ void Click_Register(GtkWidget *widget){
 }
 
 int Click_Login(GtkWidget *widget){
+
 	ssh_session my_ssh_session;
 	int rc;	
 	char command[50];
@@ -289,10 +309,11 @@ int Click_Login(GtkWidget *widget){
 		SSL_write(ssl,&loginfo,sizeof(loginfo));
 		SSL_read(ssl,dirpath,sizeof(dirpath));
 		printf("Local directory is:%s\n",dirpath);
+
 		if ( opendir(dirpath) != NULL )
 		{
-			sprintf(command,"/home/liaoz/uvicelec590/poc/gtkex %s",dirpath);
-			system(command);
+			do_list_store("/home/liaoz/testrep/");
+			strcpy(homepath,dirpath);
 		}
 		else
 		{
@@ -426,6 +447,251 @@ int verify_knownhost(ssh_session session){
 			free(hash);
 			return -1;
 	}
+}
+
+static GtkTreeModel *create_model (GtkEntry* directory_entry){
+  gint i = 0;
+
+  GtkTreeIter iter;
+
+  /* create list store */
+  store = gtk_list_store_new (NUM_COLUMNS,
+                              G_TYPE_STRING,
+                              G_TYPE_STRING);
+
+  /* add data to the list store */
+	const char* dirpath = (const char*)gtk_entry_get_text(directory_entry);
+    DIR* dir = opendir(dirpath);
+    struct dirent* enump = NULL;
+    size_t name_len;
+	gchar *icon_name;
+
+    if(NULL == dir)
+    {
+        g_print("Open directory failed:%s.\n", dirpath);
+    }
+
+    while(enump = readdir(dir))
+    {
+        name_len = strlen(enump->d_name);
+
+        if( enump->d_name[0] == '.')     
+			continue;
+
+        if(DT_DIR == enump->d_type)
+        {
+			icon_name="folder";
+			gtk_list_store_append (store, &iter);
+			gtk_list_store_set (store, &iter,
+								COLUMN_ICON, icon_name,
+								COLUMN_NAME, enump->d_name,
+								-1);
+        }
+
+        if(DT_REG == enump->d_type)
+        {	icon_name="text-html";
+			gtk_list_store_append (store, &iter);
+			gtk_list_store_set (store, &iter,
+								COLUMN_ICON, icon_name,
+								COLUMN_NAME, enump->d_name,
+								-1);
+        }
+    }
+
+
+  return GTK_TREE_MODEL (store);
+}
+
+static void add_columns (GtkTreeView *treeview){
+  GtkCellRenderer *renderer;
+  GtkTreeViewColumn *column;
+  GtkTreeModel *model = gtk_tree_view_get_model (treeview);
+  
+  /* column for file icon */
+  renderer = gtk_cell_renderer_pixbuf_new ();
+  g_object_set (G_OBJECT (renderer), "follow-state", TRUE, NULL);
+  column = gtk_tree_view_column_new_with_attributes ("Type",
+                                                     renderer,
+                                                     "icon-name",
+                                                     COLUMN_ICON,
+                                                     NULL);
+  gtk_tree_view_column_set_sort_column_id (column, COLUMN_ICON);
+  gtk_tree_view_append_column (treeview, column);
+
+  /* column for filename */
+  renderer = gtk_cell_renderer_text_new ();
+  column = gtk_tree_view_column_new_with_attributes ("Name",
+                                                     renderer,
+                                                     "text",
+                                                     COLUMN_NAME,
+                                                     NULL);
+  gtk_tree_view_column_set_sort_column_id (column, COLUMN_NAME);
+  gtk_tree_view_append_column (treeview, column);
+}
+
+static gboolean window_closed (GtkWidget *widget, GdkEvent  *event, gpointer   user_data){
+  model = NULL;
+  window = NULL;
+  if (timeout != 0)
+    {
+      g_source_remove (timeout);
+      timeout = 0;
+    }
+  return FALSE;
+}
+
+static GtkWidget *do_list_store (char *dirpath){
+  if (!file_window)
+    {
+		GtkWidget *vbox;
+		GtkWidget *hbox;
+		GtkWidget *label;
+		GtkWidget* directory_label;
+		GtkWidget* btn_back;
+	
+		/* create file_window, etc */
+		file_window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+		//gtk_window_set_screen (GTK_WINDOW (file_window), gtk_widget_get_screen (do_widget));
+		gtk_window_set_title (GTK_WINDOW (file_window), "ELEC590 Online File System V0.01");
+	
+		g_signal_connect (file_window, "destroy",G_CALLBACK (gtk_widget_destroyed), &file_window);
+		gtk_container_set_border_width (GTK_CONTAINER (file_window), 8);
+	
+		vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 8);
+		hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 8);
+		gtk_container_add (GTK_CONTAINER (file_window), vbox);
+		gtk_box_pack_start (GTK_BOX (vbox), hbox, FALSE, FALSE, 0);
+		
+		directory_label = gtk_label_new("Path");
+		gtk_box_pack_start (GTK_BOX (hbox), directory_label, FALSE, FALSE, 0);
+		directory_entry = gtk_entry_new();
+		gtk_editable_set_editable ((GtkEditable*)directory_entry, FALSE);
+		gtk_entry_set_text((GtkEntry*)(directory_entry), dirpath);
+		gtk_box_pack_start (GTK_BOX (hbox), directory_entry, TRUE, TRUE, 0);
+		
+		btn_back = gtk_button_new_from_icon_name ("gtk-go-back-ltr",GTK_ICON_SIZE_SMALL_TOOLBAR);
+		gtk_box_pack_start (GTK_BOX (hbox), btn_back, FALSE, FALSE, 0);
+		
+		label = gtk_label_new ("Choose a file to view the revisions. Click the button to rollback.");
+		gtk_box_pack_start (GTK_BOX (vbox), label, FALSE, FALSE, 0);
+		
+		sw = gtk_scrolled_window_new (NULL, NULL);
+		gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (sw),GTK_SHADOW_ETCHED_IN);
+		gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (sw),GTK_POLICY_NEVER,GTK_POLICY_AUTOMATIC);
+		gtk_box_pack_start (GTK_BOX (vbox), sw, TRUE, TRUE, 0);
+	
+		/* create tree model */
+		model = create_model ((GtkEntry*)directory_entry);
+	
+		/* create tree view */
+		treeview = gtk_tree_view_new_with_model (model);
+		gtk_tree_view_set_rules_hint (GTK_TREE_VIEW (treeview), TRUE);
+		gtk_tree_view_set_search_column (GTK_TREE_VIEW (treeview),COLUMN_NAME);
+	
+		g_object_unref (model);
+	
+		gtk_container_add (GTK_CONTAINER (sw), treeview);
+	
+		/* add columns to the tree view */
+		add_columns (GTK_TREE_VIEW (treeview)); 
+	
+		/* finish & show */
+		gtk_window_set_default_size (GTK_WINDOW (file_window), 280, 250);
+		g_signal_connect (file_window, "delete-event",G_CALLBACK (window_closed), NULL);
+		g_signal_connect(btn_back, "clicked", G_CALLBACK(back_btn_clicked), (gpointer)(directory_entry));
+		g_signal_connect(treeview, "row-activated", G_CALLBACK(file_list_click_handle), (gpointer)(directory_entry));
+    }
+
+  if (!gtk_widget_get_visible (file_window))
+    {
+      gtk_widget_show_all (file_window);
+    }
+  else
+    {
+      gtk_widget_destroy (file_window);
+      file_window = NULL;
+      if (timeout != 0)
+        {
+          g_source_remove (timeout);
+          timeout = 0;
+        }
+    }
+
+  return file_window;
+}
+
+gint  file_list_click_handle (GtkTreeView *treeview1,GtkTreePath *path, GtkTreeViewColumn  *col,gpointer userdata){       
+	GtkEntry* path_entry = (GtkEntry*)userdata;
+	GtkTreeModel *model1;
+	GtkTreeIter   iter;
+    model1 = gtk_tree_view_get_model(treeview1); 
+    if (gtk_tree_model_get_iter(model1, &iter, path))
+    {
+		gchar *name;
+		gchar *icon;
+		gtk_tree_model_get(model1, &iter, COLUMN_NAME, &name,COLUMN_ICON, &icon, -1); 
+		g_print ("Double-clicked %s\n", name);		
+		const char* old_path = gtk_entry_get_text(path_entry);
+            if( strcmp(icon,"folder") == 0)
+            {
+                //directory
+                gchar* new_path = (gchar*)malloc(strlen(old_path) + strlen(name) + 2);
+                strcpy(new_path, old_path);
+                strcat(new_path, name);
+                strcat(new_path, "/");
+
+                if(opendir(new_path))
+                {	
+                    gtk_entry_set_text(path_entry, new_path);
+					create_model((GtkEntry*)(path_entry));
+					/* update tree view */
+					gtk_tree_view_set_model(GTK_TREE_VIEW(treeview), GTK_TREE_MODEL(store));
+                }
+                free(new_path);
+            }
+            else 
+            {
+                //regular file
+                gchar* file_path = (gchar*)malloc(strlen(old_path) + strlen(name) + 1);
+                strcpy(file_path, old_path);
+                strcat(file_path, name);
+                //text_view_file_content(text, file_path);
+            }				
+       g_free(name);
+    }
+}
+
+gint calc_start_pos(const char* path){
+    size_t path_len = strlen(path);
+    const char* p = path;
+    gint count = 0;
+    const char* p_second_last_slash = path + path_len - 2;
+    while(*p_second_last_slash != '/')
+    {
+        p_second_last_slash--;
+    }
+
+    for(; p != p_second_last_slash; ++p)
+    {
+        count++;
+    }
+
+    //skip the slash
+    count+=1;
+
+    return count;
+}
+
+void back_btn_clicked(GtkButton* back_btn, gpointer data){
+    GtkEntry* path_entry = (GtkEntry*)data;
+    gint start_pos;
+    const char* old_path = gtk_entry_get_text(path_entry);
+    if(!strcmp(old_path, homepath))
+        return;
+    start_pos = calc_start_pos(old_path);
+    gtk_editable_delete_text((GtkEditable*)path_entry, start_pos, -1);
+    create_model((GtkEntry*)(path_entry));
+	gtk_tree_view_set_model(GTK_TREE_VIEW(treeview), GTK_TREE_MODEL(store));
 }
 
 int main (int argc, char *argv[]){
