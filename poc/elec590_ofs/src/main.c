@@ -55,8 +55,11 @@ typedef struct {
 	char password[100];
 	char directory[200];
 	char query_object[200];
+	char commit_sha[100];
 	int operation;
 } reginfo;
+
+
 
 typedef struct {
   char  commit_sha[50];
@@ -681,7 +684,7 @@ static GtkWidget *do_list_store (char *dirpath){
   return file_window;
 }
 
-gint  file_list_click_handle (GtkTreeView *treeview1,GtkTreePath *path, GtkTreeViewColumn  *col,gpointer userdata){       
+gint file_list_click_handle (GtkTreeView *treeview1,GtkTreePath *path, GtkTreeViewColumn  *col,gpointer userdata){       
 	GtkEntry* path_entry = (GtkEntry*)userdata;
 	GtkTreeModel *model1;
 	GtkTreeIter   iter;
@@ -756,13 +759,14 @@ void back_btn_clicked(GtkButton* back_btn, gpointer data){
 }
 
 void btn_getcommit_clicked(GtkButton* btn_getcommit, gpointer data){
+	int i;
 	GtkEntry* path_entry = (GtkEntry*)data;
 	const char* old_path = gtk_entry_get_text(path_entry);
 	char whole_path[200];
 	strcpy(whole_path,old_path);
 	strcat(whole_path,select_object);
 	ReplaceStr(whole_path,homepath,"");
-	loginfo.operation=3;//Checkout
+	loginfo.operation=3;//get commit sha
 	strcpy(loginfo.query_object,whole_path);
 	//printf("user operation is checkout\n");
 	printf("select target:%s\n",loginfo.query_object);
@@ -770,16 +774,7 @@ void btn_getcommit_clicked(GtkButton* btn_getcommit, gpointer data){
 	memset((char*)revsion, 0, sizeof(version_info)*10);
 	SSL_read(ssl, (char*)revsion, sizeof(version_info)*10);
 	gtk_combo_box_text_remove_all ((GtkComboBoxText *)combo);
-	gtk_combo_box_text_prepend ((GtkComboBoxText *)combo, NULL,"File/Directory Modified Timestamp");
-	int i;
-		for (i=0;i<10;i++){
-	/*
-	    if (strlen(revsion[i].commit_sha)) printf ("commit_sha:%s\n",revsion[i].commit_sha);
-	    if (strlen(revsion[i].author)) printf ("author:%s\n",revsion[i].author);
-		
-	    if (strlen(revsion[i].message)) printf ("message:%s\n",revsion[i].message);
-	*/
-		if (strlen(revsion[i].date)) printf ("date%i:%s\n",i,revsion[i].date);
+	for (i=0;i<10;i++){
 		if ( strlen(revsion[i].date))
 		{	
 			gtk_combo_box_text_append  ((GtkComboBoxText *)combo, NULL,revsion[i].date);
@@ -788,9 +783,19 @@ void btn_getcommit_clicked(GtkButton* btn_getcommit, gpointer data){
 }
 
 void btn_checkout_clicked(GtkButton* btn_checkout, gpointer data){
+	int i;
 	const char *timestamp = gtk_combo_box_text_get_active_text ((GtkComboBoxText *)combo);
 	printf("selct time:%s\n",timestamp);
-	printf("select target:%s\n",select_object);
+	printf("select target:%s\n",loginfo.query_object);
+	for (i=0;i<10;i++)
+	{	
+		if ( strcmp(revsion[i].date,timestamp) == 0 )
+		{
+			strcpy(loginfo.commit_sha,revsion[i].commit_sha);
+		}
+	}
+	loginfo.operation=4;//checkout file
+	SSL_write(ssl,&loginfo,sizeof(loginfo));
 }
 
 void  on_selection_changed(GtkWidget *widget, gpointer data) {
@@ -801,6 +806,7 @@ void  on_selection_changed(GtkWidget *widget, gpointer data) {
 	{
 		gtk_tree_model_get(model, &iter, COLUMN_NAME, &select_object,  -1);
 	}
+	gtk_combo_box_text_remove_all ((GtkComboBoxText *)combo);
 }
 
 int ReplaceStr(char *sSrc, char *sMatchStr, char *sReplaceStr){

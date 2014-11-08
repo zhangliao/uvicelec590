@@ -25,6 +25,7 @@ typedef struct {
 	char password[100];
 	char directory[200];
 	char query_object[200];
+	char commit_sha[100];
 	int operation;
 } reginfo;
 
@@ -43,6 +44,7 @@ int create_repository(char *username);
 
 static void create_initial_commit(git_repository *repo,char *username);
 int get_commit_time(char *username,char *filename);
+static void checkout(char filename[], char commit_sha[]);
 
 int main(){  
 		FILE *fp;
@@ -170,6 +172,11 @@ int main(){
 							get_commit_time(userinfo.username,userinfo.query_object);
 							SSL_write(ssl, (char*)revsion, sizeof(version_info)*10);
 							break;
+						case 4:
+							//printf("Commit SHA is:%s\n",userinfo.commit_sha);
+							//printf("Filename is:%s\n",userinfo.query_object);
+							checkout(userinfo.query_object,userinfo.commit_sha);
+							break;
 					}
 				}
         }  
@@ -280,8 +287,7 @@ static void create_initial_commit(git_repository *repo,char *username){
 	git_signature_free(sig);
 }
 
-int get_commit_time(char *username,char *filename)
-{
+int get_commit_time(char *username,char *filename){
     FILE *pf;
     char command[200];
     char data[5000];
@@ -299,7 +305,7 @@ int get_commit_time(char *username,char *filename)
 	char * line;
 	//printf ("Splitting data......\n");
 	line = strtok (data,"\n");
-	memset(&revsion, 0, sizeof(version_info));
+	memset((char*)revsion, 0, sizeof(version_info)*10);
 	while (line != NULL && i < 10)
 	{	
 		strncpy(revsion[i].commit_sha,line+7,strlen(line));
@@ -321,15 +327,35 @@ int get_commit_time(char *username,char *filename)
 		i++;
 		printf("\n");
 	}
-	
-	for (i=0;i<10;i++){
-	    if (strlen(revsion[i].commit_sha)) printf ("commit_sha%d:%s\n",i,revsion[i].commit_sha);
-	    if (strlen(revsion[i].author)) printf ("author%d:%s\n",i,revsion[i].author);
-	    if (strlen(revsion[i].date)) printf ("date%d:%s\n",i,revsion[i].date);
-	    if (strlen(revsion[i].message)) printf ("message%d:%s\n",i,revsion[i].message);
-	}
-	
+
 	if (pclose(pf) != 0)
     fprintf(stderr," Error: Failed to close command stream \n");
     return 0;
+}
+
+static void checkout(char filename[], char commit_sha[]){
+	git_checkout_opts opts = GIT_CHECKOUT_OPTS_INIT;
+	char *paths[] = {filename};
+	opts.paths.strings = paths;
+	opts.paths.count = 1;
+	opts.checkout_strategy = GIT_CHECKOUT_FORCE ;
+	git_commit *commit;
+	git_oid oid;
+	git_repository *repo = NULL;
+	char repo_path[100];
+	sprintf(repo_path,"/home/%s",userinfo.username);
+	if (git_repository_open(&repo,repo_path) < 0 )
+		printf("Unable to open the repository\n");
+	// Get "Commit ID"
+	if (git_oid_fromstr(&oid, commit_sha) < 0)
+		printf("Could not find the commit object\n");
+	if (git_commit_lookup(&commit, repo, &oid) < 0) 
+		printf("Could not lookup the commit id\n");
+
+	// Do the checkout
+	if (git_checkout_tree(repo, (git_object*)commit, &opts) < 0)
+		printf("Checkout faild\n");
+
+	// Clean up
+	git_commit_free(commit);
 }
