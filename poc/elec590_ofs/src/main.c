@@ -17,7 +17,7 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include </home/liaoz/elec590_ofs/src/config.h>
+#include <config.h>
 #include <gtk/gtk.h>
 #include <glib/gi18n.h>
 #include <string.h>
@@ -43,11 +43,11 @@
 #include <string.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 typedef struct {
-  GtkWidget *widget;
-  gint index;
-  const gchar *title;
-  GtkAssistantPageType type;
-  gboolean complete;
+	GtkWidget *widget;
+	gint index;
+	const gchar *title;
+	GtkAssistantPageType type;
+	gboolean complete;
 } PageInfo;
 
 typedef struct {
@@ -62,10 +62,10 @@ typedef struct {
 
 
 typedef struct {
-  char  commit_sha[50];
-  char  author[50];
-  char  date[50];
-  char  message[50];
+	char  commit_sha[50];
+	char  author[50];
+	char  date[50];
+	char  message[50];
 } version_info;
 
 
@@ -113,14 +113,15 @@ static void assistant_close  (GtkAssistant*, gpointer);
 static GtkWidget *do_list_store (char *dirpath);
 void btn_getcommit_clicked(GtkButton* btn_getcommit, gpointer data);
 void btn_checkout_clicked(GtkButton* btn_checkout, gpointer data);
+void btn_resync_clicked(GtkButton* btn_resync, gpointer data);
 void  on_selection_changed(GtkWidget *widget, gpointer data);
 int ReplaceStr(char *sSrc, char *sMatchStr, char *sReplaceStr);
 gint  file_list_click_handle (GtkTreeView *treeview,GtkTreePath *path, GtkTreeViewColumn  *col,gpointer userdata);
 
 enum{ 
-  COLUMN_ICON,
-  COLUMN_NAME,
-  NUM_COLUMNS
+	COLUMN_ICON,
+	COLUMN_NAME,
+	NUM_COLUMNS
 };
 
 void ShowCerts(SSL * ssl){
@@ -663,6 +664,7 @@ static GtkWidget *do_list_store (char *dirpath){
 		g_signal_connect(btn_back, "clicked", G_CALLBACK(back_btn_clicked), (gpointer)(directory_entry));
 		g_signal_connect(btn_getcommit, "clicked", G_CALLBACK(btn_getcommit_clicked), (gpointer)(directory_entry));
 		g_signal_connect(btn_checkout, "clicked", G_CALLBACK(btn_checkout_clicked), NULL);
+		g_signal_connect(btn_resync, "clicked", G_CALLBACK(btn_resync_clicked), NULL);
 		g_signal_connect(treeview, "row-activated", G_CALLBACK(file_list_click_handle), (gpointer)(directory_entry));
     }
 
@@ -796,6 +798,13 @@ void btn_checkout_clicked(GtkButton* btn_checkout, gpointer data){
 	}
 	loginfo.operation=4;//checkout file
 	SSL_write(ssl,&loginfo,sizeof(loginfo));
+}
+
+void btn_resync_clicked(GtkButton* btn_resync, gpointer data){
+	//printf("Resync ALL!!!!!\n");
+	//Transfer One file(sync from server or sync to server)
+	//Read From a modified file list
+	//
 }
 
 void  on_selection_changed(GtkWidget *widget, gpointer data) {

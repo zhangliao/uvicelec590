@@ -1,22 +1,20 @@
-#include<stdio.h>  
-#include<stdlib.h>  
-#include<string.h>  
-#include<unistd.h> 
+#include <stdio.h>  
+#include <stdlib.h>  
+#include <string.h>  
+#include <unistd.h> 
 #include </usr/include/git2/common.h>
 #include </usr/include/git2/errors.h>
 #include <git2.h>
 #include <stdio.h> 
-  
-#include<sys/types.h>  
-#include<sys/socket.h>  
-#include<netinet/in.h>  
-#include<arpa/inet.h>  
-  
-#include<sys/stat.h>  
-#include<fcntl.h>  
-#include<time.h>  
-  
-#include<errno.h>  
+#include <sys/types.h>  
+#include <sys/socket.h>  
+#include <netinet/in.h>  
+#include <arpa/inet.h>  
+#include <sys/stat.h>  
+#include <fcntl.h>  
+#include <time.h>  
+#include <signal.h>
+#include <errno.h>  
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #define oops(msg) { perror(msg); exit(errno); }  
@@ -41,7 +39,6 @@ version_info revsion[10];
 git_repository *repo = NULL;
 int create_user(char *username, char *password, char *directory );
 int create_repository(char *username);
-
 static void create_initial_commit(git_repository *repo,char *username);
 int get_commit_time(char *username,char *filename);
 static void checkout(char filename[], char commit_sha[]);
@@ -52,38 +49,28 @@ int main(){
 		char *localdir;
 		SSL_CTX *ctx;
 		int n;
-
+		pid_t pid;
+		signal(SIGCHLD, SIG_IGN);
 		SSL_library_init();/* SSL 库初始化 */
-		
 		OpenSSL_add_all_algorithms();/* 载入所有 SSL 算法 */
-		
-		SSL_load_error_strings();/* 载入所有 SSL 错误消息 */
-		
-		ctx = SSL_CTX_new(SSLv23_server_method());/* 以 SSL V2 和 V3 标准兼容方式产生一个 SSL_CTX ，即 SSL Content Text */
-		
+		SSL_load_error_strings();/* 载入所有 SSL 错误消息 */		
+		ctx = SSL_CTX_new(SSLv23_server_method());/* 以 SSL V2 和 V3 标准兼容方式产生一个 SSL_CTX ，即 SSL Content Text */		
 		if (ctx == NULL) {
 			ERR_print_errors_fp(stdout);
 			exit(1);
-		}/* 也可以用 SSLv2_server_method() 或 SSLv3_server_method() 单独表示 V2 或 V3标准 */
-		
-		
+		}/* 也可以用 SSLv2_server_method() 或 SSLv3_server_method() 单独表示 V2 或 V3标准 */				
 		if (SSL_CTX_use_certificate_file(ctx, "cacert.pem", SSL_FILETYPE_PEM) <= 0) {
 			ERR_print_errors_fp(stdout);
 			exit(1);
-		}/* 载入用户的数字证书， 此证书用来发送给客户端。 证书里包含有公钥 */
-		
+		}/* 载入用户的数字证书， 此证书用来发送给客户端。 证书里包含有公钥 */		
 		if (SSL_CTX_use_PrivateKey_file(ctx, "privkey.pem", SSL_FILETYPE_PEM) <= 0) {
 			ERR_print_errors_fp(stdout);
 			exit(1);
-		}/* 载入用户私钥 */
-		
+		}/* 载入用户私钥 */		
 		if (!SSL_CTX_check_private_key(ctx)) {
 			ERR_print_errors_fp(stdout);
 			exit(1);
-		}/* 检查用户私钥是否正确 */
-		
-		
-		
+		}/* 检查用户私钥是否正确 */						
         int sd = socket(PF_INET, SOCK_STREAM, 0);  
         if(sd == -1) oops("socket");  
   
@@ -106,8 +93,7 @@ int main(){
 				int length;
 				char message[100]; 
                 int client_fd = accept(sd, NULL, NULL);  
-                if(client_fd == -1) oops("accept");  
-				
+                if(client_fd == -1) oops("accept");  							
 				/* 基于 ctx 产生一个新的 SSL */
 				ssl = SSL_new(ctx);
 				/* 将连接用户的 socket 加入到 SSL */
@@ -118,67 +104,79 @@ int main(){
 					close(client_fd);
 					break;
 				}
-							
-
-				while(1)
-				{	
-					//memset(&userinfo, 0, sizeof(userinfo));
-					n = SSL_read(ssl, &userinfo, sizeof(userinfo));
-					if(n == -1)
-					{
-						perror("fail to read");
-						exit(1);
-						close(sd);
-					}
-					else if(n == 0)
-					{
-						printf("Connection Closed!\n");
-						close(sd);
-						exit(1);
-					}
-					switch( userinfo.operation ) 
-					{
-						case 1:
-							memset(dirfile, 0, sizeof(dirfile) );
-							sprintf(dirfile,"/home/%s/.dirfile",userinfo.username);
-							printf("User %s try to login...\n",userinfo.username);
-							fp = fopen(dirfile,"rb");
-							if (fp)
-							{
-								fseek (fp, 0, SEEK_END);
-								length = ftell (fp);
-								fseek (fp, 0, SEEK_SET);
-								localdir = malloc (length + 1);
-								memset(localdir, 0, length+1);
-								if (localdir)
-								{
-									fread (localdir, 1, length, fp);
-								}
-								fclose (fp);
-							}
-							printf("user local directory is:%s\n",localdir);
-							SSL_write(ssl, localdir, strlen(localdir));
-							break;
-						case 2:
-							printf("Username is:%s\n",userinfo.username);
-							printf("Passowrd:%s\n",userinfo.password);
-							printf("Directory:%s\n",userinfo.directory);
-							create_user(userinfo.username,userinfo.password,userinfo.directory);
-							create_repository(userinfo.username);
-							create_initial_commit(repo,userinfo.username);
-							break;
-						case 3:
-							printf("QUERY OBJECT IS:%s\n",userinfo.query_object);
-							get_commit_time(userinfo.username,userinfo.query_object);
-							SSL_write(ssl, (char*)revsion, sizeof(version_info)*10);
-							break;
-						case 4:
-							//printf("Commit SHA is:%s\n",userinfo.commit_sha);
-							//printf("Filename is:%s\n",userinfo.query_object);
-							checkout(userinfo.query_object,userinfo.commit_sha);
-							break;
-					}
+				if((pid=fork())>0)
+				{
+					close(client_fd);
+					continue;
 				}
+				else if(pid==0)
+				{		
+					while(1)
+					{	
+						n = SSL_read(ssl, &userinfo, sizeof(userinfo));
+						if(n == -1)
+						{
+							perror("fail to read");
+							exit(1);
+							close(sd);
+						}
+						else if(n == 0)
+						{
+							printf("Connection Closed!\n");
+							close(sd);
+							exit(1);
+						}
+						switch( userinfo.operation ) 
+						{
+							case 1:
+								memset(dirfile, 0, sizeof(dirfile) );
+								sprintf(dirfile,"/home/%s/.dirfile",userinfo.username);
+								printf("User %s try to login...\n",userinfo.username);
+								fp = fopen(dirfile,"rb");
+								if (fp)
+								{
+									fseek (fp, 0, SEEK_END);
+									length = ftell (fp);
+									fseek (fp, 0, SEEK_SET);
+									localdir = malloc (length + 1);
+									memset(localdir, 0, length+1);
+									if (localdir)
+									{
+										fread (localdir, 1, length, fp);
+									}
+									fclose (fp);
+								}
+								printf("user local directory is:%s\n",localdir);
+								SSL_write(ssl, localdir, strlen(localdir));
+								break;
+							case 2:
+								printf("Username is:%s\n",userinfo.username);
+								printf("Passowrd:%s\n",userinfo.password);
+								printf("Directory:%s\n",userinfo.directory);
+								create_user(userinfo.username,userinfo.password,userinfo.directory);
+								create_repository(userinfo.username);
+								create_initial_commit(repo,userinfo.username);
+								break;
+							case 3:
+								printf("QUERY OBJECT IS:%s\n",userinfo.query_object);
+								get_commit_time(userinfo.username,userinfo.query_object);
+								SSL_write(ssl, (char*)revsion, sizeof(version_info)*10);
+								break;
+							case 4:
+								checkout(userinfo.query_object,userinfo.commit_sha);
+								break;
+						}
+					}
+					close(client_fd);
+					exit(0);
+				}
+				else
+				{
+					printf("fork error.\n");
+					exit(1);
+				}      			
+				
+				
         }  
         return EXIT_SUCCESS;  
 } 
