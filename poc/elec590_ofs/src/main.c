@@ -385,11 +385,11 @@ static GtkWidget* create_window (void){
 	entry_password	 = GTK_WIDGET (gtk_builder_get_object (builder, "entry_password"));
 	gtk_entry_set_visibility(GTK_ENTRY(entry_password),FALSE);
 	gtk_entry_set_invisible_char (GTK_ENTRY(entry_password),'*');
-	g_signal_connect(button_reg, "clicked", G_CALLBACK(Click_Register), NULL);
 	priv = g_malloc (sizeof (struct _Private));	
 	g_signal_connect (G_OBJECT (entry_username), "changed", G_CALLBACK (entry_login_username_changed), NULL);
 	g_signal_connect (G_OBJECT (entry_password), "changed", G_CALLBACK (entry_login_password_changed), NULL);
 	g_signal_connect(button_login, "clicked", G_CALLBACK(Click_Login), NULL);
+	g_signal_connect(button_reg, "clicked", G_CALLBACK(Click_Register), NULL);
 	/* ANJUTA: Widgets initialization for elec590_ofs.ui - DO NOT REMOVE */
 	g_object_unref (builder);	
 	return window;
@@ -584,7 +584,7 @@ static GtkWidget *do_list_store (char *dirpath){
 		
 		/* create file_window, etc */
 		file_window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-		//gtk_window_set_screen (GTK_WINDOW (file_window), gtk_widget_get_screen (do_widget));
+		gtk_window_set_icon_name(GTK_WINDOW(file_window),"view-refresh");
 		gtk_window_set_title (GTK_WINDOW (file_window), "ELEC590 Online File System V0.01");
 		
 		g_signal_connect (file_window, "destroy",G_CALLBACK (gtk_widget_destroyed), &file_window);
@@ -695,8 +695,7 @@ gint file_list_click_handle (GtkTreeView *treeview1,GtkTreePath *path, GtkTreeVi
     {
 		gchar *name;
 		gchar *icon;
-		gtk_tree_model_get(model1, &iter, COLUMN_NAME, &name,COLUMN_ICON, &icon, -1); 
-		//g_print ("Double-clicked %s\n", name);		
+		gtk_tree_model_get(model1, &iter, COLUMN_NAME, &name,COLUMN_ICON, &icon, -1); 		
 		const char* old_path = gtk_entry_get_text(path_entry);
             if( strcmp(icon,"folder") == 0)
             {
@@ -721,7 +720,6 @@ gint file_list_click_handle (GtkTreeView *treeview1,GtkTreePath *path, GtkTreeVi
                 gchar* file_path = (gchar*)malloc(strlen(old_path) + strlen(name) + 1);
                 strcpy(file_path, old_path);
                 strcat(file_path, name);
-                //text_view_file_content(text, file_path);
             }				
        g_free(name);
     }
@@ -736,15 +734,11 @@ gint calc_start_pos(const char* path){
     {
         p_second_last_slash--;
     }
-
     for(; p != p_second_last_slash; ++p)
     {
         count++;
     }
-
-    //skip the slash
     count+=1;
-
     return count;
 }
 
@@ -801,16 +795,32 @@ void btn_checkout_clicked(GtkButton* btn_checkout, gpointer data){
 }
 
 void btn_resync_clicked(GtkButton* btn_resync, gpointer data){
-	//printf("Resync ALL!!!!!\n");
-	//Transfer One file(sync from server or sync to server)
-	//Read From a modified file list
-	//
+	printf("Resync ALL!!!!!\n");
+	char buffer[2048]; 
+	char transfile[200];
+	strcpy(transfile,"README");
+	FILE *fd = fopen("/home/liaoz/uvicelec590/poc/README", "r");
+	loginfo.operation=5;//send file
+	SSL_write(ssl,&loginfo,sizeof(loginfo));
+	SSL_write(ssl,transfile,strlen(transfile));
+	//printf("trans file is:%s\n",transfile);
+	int file_block_length = 0; 
+	while( (file_block_length = fread(buffer, sizeof(char), 2048, fd)) > 0)  
+        {  
+            printf("file_block_length = %d\n", file_block_length);   
+            if (SSL_write(ssl, buffer, file_block_length) < 0)  
+            {  
+                printf("Send File:\t%s Failed!\n", "/home/liaoz/uvicelec590/poc/README");  
+                break;  
+            }    
+            bzero(buffer, sizeof(buffer));  
+        } 
+	printf("File send!\n");
 }
 
 void  on_selection_changed(GtkWidget *widget, gpointer data) {
 	GtkTreeIter iter;
 	GtkTreeModel *model;
-	//memset(&select_object, 0, sizeof(select_object) );
 	if (gtk_tree_selection_get_selected(GTK_TREE_SELECTION(widget), &model, &iter)) 
 	{
 		gtk_tree_model_get(model, &iter, COLUMN_NAME, &select_object,  -1);

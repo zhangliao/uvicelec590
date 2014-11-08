@@ -16,7 +16,8 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #define oops(msg) { perror(msg); exit(errno); }  
-  
+void set_fl(int fd, int flags);
+void clr_fl(int fd, int flags); 
 int main(){  
 		
 		SSL_CTX *ctx;
@@ -88,19 +89,53 @@ int main(){
 				
                 char fileName[100]="";  
 				char filePath[100]="";
+				int error,status;
+				//clr_fl(sd, O_NONBLOCK);
 				SSL_read(ssl, fileName, sizeof(fileName));
-				printf("file name:%s",fileName);
-                sprintf(filePath, "%s", fileName);  
+				printf("file name:%s\n",fileName);
+                sprintf(filePath, "%s\n", fileName);  
                 int fd = open(filePath, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR);  
                 if(fd == -1) oops("open");  
   
                 char buff[1024];  
-                ssize_t length;  
+                ssize_t length;
+				
                 while((length = SSL_read(ssl, buff, sizeof(buff))) > 0){  
-                        write(fd, buff, length);  
+                        write(fd, buff, length);
+						//error=SSL_get_error(ssl,status);
+						//if(error == SSL_ERROR_ZERO_RETURN)
+						//{
+						//	goto end;
+						//}
                 }  
-  
-                close(fd);  
+				//set_fl(client_fd, O_NONBLOCK);
+                close(fd);
         }  
         return EXIT_SUCCESS;  
 } 
+
+void set_fl(int fd, int flags) /* flags are file status flags to turn on */
+{
+        int     val;
+
+        if ((val = fcntl(fd, F_GETFL, 0)) < 0)
+                printf("fcntl F_GETFL error\n");
+
+        val |= flags;       /* turn on flags */
+
+        if (fcntl(fd, F_SETFL, val) < 0)
+                printf("fcntl F_SETFL error\n");
+}
+
+void clr_fl(int fd, int flags) /* flags are file status flags to turn off */
+{
+        int     val;
+
+        if ((val = fcntl(fd, F_GETFL, 0)) < 0)
+                printf("fcntl F_GETFL error\n");
+
+        val &= ~flags;      /* turn flags off */
+
+        if (fcntl(fd, F_SETFL, val) < 0)
+                printf("fcntl F_SETFL error\n");
+}

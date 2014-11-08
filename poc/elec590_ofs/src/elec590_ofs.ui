@@ -9,7 +9,7 @@
     <property name="window_position">center</property>
     <property name="default_width">490</property>
     <property name="default_height">300</property>
-    <property name="icon_name">emblem-ubuntuone-updating</property>
+    <property name="icon_name">view-refresh</property>
     <signal name="destroy" handler="destroy" swapped="no"/>
     <child>
       <object class="GtkFrame" id="frame1">

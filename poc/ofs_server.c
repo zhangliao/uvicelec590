@@ -42,7 +42,8 @@ int create_repository(char *username);
 static void create_initial_commit(git_repository *repo,char *username);
 int get_commit_time(char *username,char *filename);
 static void checkout(char filename[], char commit_sha[]);
-
+void set_fl(int fd, int flags);
+void clr_fl(int fd, int flags);
 int main(){  
 		FILE *fp;
 		char dirfile[100];
@@ -92,7 +93,11 @@ int main(){
 				SSL *ssl;
 				int length;
 				char message[100]; 
-                int client_fd = accept(sd, NULL, NULL);  
+				char filename[100];  
+				char filePath[100];	
+				char buff[2048];  				
+                int client_fd = accept(sd, NULL, NULL); 
+				int error,status=0;			
                 if(client_fd == -1) oops("accept");  							
 				/* 基于 ctx 产生一个新的 SSL */
 				ssl = SSL_new(ctx);
@@ -126,6 +131,7 @@ int main(){
 							close(sd);
 							exit(1);
 						}
+						printf("operation is:%d\n",userinfo.operation);
 						switch( userinfo.operation ) 
 						{
 							case 1:
@@ -165,6 +171,30 @@ int main(){
 							case 4:
 								checkout(userinfo.query_object,userinfo.commit_sha);
 								break;
+							case 5:
+								n = SSL_read(ssl, filename, sizeof(filename));
+								filename[n]='\0';
+								printf("file name:%s\n",filename);
+								sprintf(filePath, "/home/%s/%s", userinfo.username,filename); 
+								printf("file path:%s\n",filePath);								
+								int fd = open(filePath, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR);  
+								if(fd == -1) oops("open");  			
+								ssize_t length; 
+								set_fl(client_fd, O_NONBLOCK); 
+								while(1)
+								{  
+									length = SSL_read(ssl, buff, sizeof(buff));
+									//printf("length is:%d\n",(int)length);									
+									if ( length == -1 )
+									{	
+										clr_fl(client_fd, O_NONBLOCK);
+										break;
+									}
+									write(fd, buff, length); 
+								}   
+								close(fd);
+								printf("File write finished!\n");
+								break;								
 						}
 					}
 					close(client_fd);
@@ -307,25 +337,16 @@ int get_commit_time(char *username,char *filename){
 	while (line != NULL && i < 10)
 	{	
 		strncpy(revsion[i].commit_sha,line+7,strlen(line));
-		//printf ("commit_sha:%s\n",revsion[i].commit_sha);
-
 		line = strtok (NULL, "\n");
-		strcpy(revsion[i].author,line);
-		//printf ("author:%s\n",revsion[i].author);
-		
+		strcpy(revsion[i].author,line);		
 		line = strtok (NULL, "\n");
-		strncpy(revsion[i].date,line+7,35);
-		//printf ("date:%s\n",revsion[i].date);
-		
+		strncpy(revsion[i].date,line+7,35);		
 		line = strtok (NULL, "\n");
-		strcpy(revsion[i].message,line);
-		//printf ("message:%s\n",revsion[i].message);
-		
+		strcpy(revsion[i].message,line);	
 		line = strtok (NULL, "\n");
 		i++;
 		printf("\n");
 	}
-
 	if (pclose(pf) != 0)
     fprintf(stderr," Error: Failed to close command stream \n");
     return 0;
@@ -356,4 +377,30 @@ static void checkout(char filename[], char commit_sha[]){
 
 	// Clean up
 	git_commit_free(commit);
+}
+
+void set_fl(int fd, int flags) /* flags are file status flags to turn on */
+{
+        int     val;
+
+        if ((val = fcntl(fd, F_GETFL, 0)) < 0)
+                printf("fcntl F_GETFL error\n");
+
+        val |= flags;       /* turn on flags */
+
+        if (fcntl(fd, F_SETFL, val) < 0)
+                printf("fcntl F_SETFL error\n");
+}
+
+void clr_fl(int fd, int flags) /* flags are file status flags to turn off */
+{
+        int     val;
+
+        if ((val = fcntl(fd, F_GETFL, 0)) < 0)
+                printf("fcntl F_GETFL error\n");
+
+        val &= ~flags;      /* turn flags off */
+
+        if (fcntl(fd, F_SETFL, val) < 0)
+                printf("fcntl F_SETFL error\n");
 }
