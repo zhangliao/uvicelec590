@@ -41,7 +41,7 @@
 #include <stdio.h> 
 #include <errno.h>
 #include <string.h>
-
+#include <gdk-pixbuf/gdk-pixbuf.h>
 typedef struct {
   GtkWidget *widget;
   gint index;
@@ -54,8 +54,18 @@ typedef struct {
 	char username[100];
 	char password[100];
 	char directory[200];
-	char operation[10];
+	char query_object[200];
+	int operation;
 } reginfo;
+
+typedef struct {
+  char  commit_sha[50];
+  char  author[50];
+  char  date[50];
+  char  message[50];
+} version_info;
+
+
 
 typedef struct _Private Private;
 
@@ -75,15 +85,18 @@ struct _Private{
 GtkWidget *window;
 reginfo userinfo;
 reginfo loginfo;
+version_info revsion[10];
 SSL *ssl;
 static GtkWidget *file_window = NULL;
 static GtkTreeModel *model = NULL;
 static guint timeout = 0;
+char *select_object;
 char homepath[200] ;
 GtkWidget* directory_entry; 
 GtkWidget *sw;
 GtkWidget *treeview;
 GtkListStore *store;
+GtkWidget *combo;
 static Private* priv = NULL;
 const gchar *list_item_data_key_string="list_item_data_label_string";
 const gchar *list_item_data_key_type="list_item_data_type";
@@ -95,6 +108,10 @@ void back_btn_clicked(GtkButton* back_btn, gpointer data);
 static void assistant_cancel (GtkAssistant*, gpointer);
 static void assistant_close  (GtkAssistant*, gpointer);
 static GtkWidget *do_list_store (char *dirpath);
+void btn_getcommit_clicked(GtkButton* btn_getcommit, gpointer data);
+void btn_checkout_clicked(GtkButton* btn_checkout, gpointer data);
+void  on_selection_changed(GtkWidget *widget, gpointer data);
+int ReplaceStr(char *sSrc, char *sMatchStr, char *sReplaceStr);
 gint  file_list_click_handle (GtkTreeView *treeview,GtkTreePath *path, GtkTreeViewColumn  *col,gpointer userdata);
 
 enum{ 
@@ -142,10 +159,13 @@ static void	entry_changed (GtkEditable *entry,GtkAssistant *assistant){
 	{
 		case 1:
 			strcpy(userinfo.username,text);
+			break;
 		case 2:
 			strcpy(userinfo.password,text);
+			break;
 		case 3:
 			strcpy(userinfo.directory,text);
+			break;
 	}
 	GtkWidget *page = gtk_assistant_get_nth_page (assistant, num);
 	gtk_assistant_set_page_complete (assistant, page, (strlen (text) > 0));
@@ -168,7 +188,8 @@ static void	button_clicked (GtkButton *button, GtkAssistant *assistant){
 	page = gtk_assistant_get_nth_page (assistant, 4);
 	if ( userinfo.username != NULL && userinfo.password != NULL && opendir(userinfo.directory) != NULL )
 	{	
-		strcpy(userinfo.operation,"REG");
+		userinfo.operation=2;//Register
+		printf("user operation is:%d\n",userinfo.operation);
 		SSL_write(ssl,&userinfo,sizeof(userinfo));
 		gtk_widget_set_sensitive (GTK_WIDGET (button), FALSE);
 		progress = GTK_PROGRESS_BAR (g_object_get_data (G_OBJECT (page), "pbar"));	
@@ -306,7 +327,9 @@ int Click_Login(GtkWidget *widget){
 		memset(dirpath, 0, sizeof(dirpath) );
 		ssh_disconnect(my_ssh_session);
 		ssh_free(my_ssh_session);
-		strcpy(loginfo.operation,"LOGIN");
+		//memset(&loginfo, 0, sizeof(loginfo));
+		loginfo.operation=1;//Login
+		printf("user operation is:%d\n",loginfo.operation);
 		SSL_write(ssl,&loginfo,sizeof(loginfo));
 		SSL_read(ssl,dirpath,sizeof(dirpath)-1);
 		printf("Local directory is:%s\n",dirpath);
@@ -552,12 +575,14 @@ static GtkWidget *do_list_store (char *dirpath){
 		GtkWidget* btn_back;
 		GtkWidget* btn_getcommit;
 		GtkWidget* btn_checkout;
-	
+		GtkWidget* btn_resync;
+		GtkTreeSelection *selection; 
+		
 		/* create file_window, etc */
 		file_window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
 		//gtk_window_set_screen (GTK_WINDOW (file_window), gtk_widget_get_screen (do_widget));
 		gtk_window_set_title (GTK_WINDOW (file_window), "ELEC590 Online File System V0.01");
-	
+		
 		g_signal_connect (file_window, "destroy",G_CALLBACK (gtk_widget_destroyed), &file_window);
 		gtk_container_set_border_width (GTK_CONTAINER (file_window), 8);
 	
@@ -585,16 +610,29 @@ static GtkWidget *do_list_store (char *dirpath){
 		gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (sw),GTK_POLICY_NEVER,GTK_POLICY_AUTOMATIC);
 		gtk_box_pack_start (GTK_BOX (vbox), sw, TRUE, TRUE, 0);
 		gtk_box_pack_start (GTK_BOX (vbox), hbox1, FALSE, FALSE, 0);
+		
+		combo = gtk_combo_box_text_new ();
+		gtk_combo_box_text_prepend (GTK_COMBO_BOX_TEXT (combo), NULL,"File/Directory Modified Timestamp");
+		gtk_box_pack_start (GTK_BOX (hbox1), combo, FALSE, FALSE, 0);
+		
 		btn_getcommit = gtk_button_new_from_icon_name ("viewmagfit",GTK_ICON_SIZE_SMALL_TOOLBAR);
 		gtk_button_set_always_show_image ((GtkButton*)btn_getcommit, TRUE);
-		gtk_button_set_label ((GtkButton*)btn_getcommit,"Lookup Versions");
+		gtk_button_set_label ((GtkButton*)btn_getcommit,"Query Version");
+        gtk_widget_set_margin_left (btn_getcommit, 15);
+        gtk_widget_set_margin_right (btn_getcommit, 15);
 		gtk_box_pack_start (GTK_BOX (hbox1), btn_getcommit, FALSE, FALSE, 0);
 		btn_checkout = gtk_button_new_from_icon_name ("stock_calc-accept",GTK_ICON_SIZE_SMALL_TOOLBAR);
 		gtk_button_set_always_show_image ((GtkButton*)btn_checkout, TRUE);
 		gtk_button_set_label ((GtkButton*)btn_checkout," Rollback File ");
-
+		gtk_widget_set_margin_left (btn_checkout, 15);
+        gtk_widget_set_margin_right (btn_checkout, 15);
 		gtk_box_pack_start (GTK_BOX (hbox1), btn_checkout, FALSE, FALSE, 0);
-		
+		btn_resync = gtk_button_new_from_icon_name ("view-refresh",GTK_ICON_SIZE_SMALL_TOOLBAR);
+		gtk_button_set_always_show_image ((GtkButton*)btn_resync, TRUE);
+		gtk_widget_set_margin_left (btn_resync, 15);
+        gtk_widget_set_margin_right (btn_resync, 15);
+		gtk_button_set_label ((GtkButton*)btn_resync," Resync All ");
+		gtk_box_pack_start (GTK_BOX (hbox1), btn_resync, FALSE, FALSE, 0);
 		/* create tree model */
 		model = create_model ((GtkEntry*)directory_entry);
 	
@@ -609,13 +647,19 @@ static GtkWidget *do_list_store (char *dirpath){
 	
 		/* add columns to the tree view */
 		add_columns (GTK_TREE_VIEW (treeview)); 
-	
+		
+		selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(treeview));
+		
+		
 		/* finish & show */
 		gtk_window_set_default_size (GTK_WINDOW (file_window), 500, 400);
 		gtk_window_set_position (GTK_WINDOW (file_window),GTK_WIN_POS_CENTER);
 		gtk_widget_hide (window);
+		g_signal_connect(selection, "changed", G_CALLBACK(on_selection_changed), NULL);
 		g_signal_connect (file_window, "delete-event",G_CALLBACK (window_closed), NULL);
 		g_signal_connect(btn_back, "clicked", G_CALLBACK(back_btn_clicked), (gpointer)(directory_entry));
+		g_signal_connect(btn_getcommit, "clicked", G_CALLBACK(btn_getcommit_clicked), (gpointer)(directory_entry));
+		g_signal_connect(btn_checkout, "clicked", G_CALLBACK(btn_checkout_clicked), NULL);
 		g_signal_connect(treeview, "row-activated", G_CALLBACK(file_list_click_handle), (gpointer)(directory_entry));
     }
 
@@ -647,7 +691,7 @@ gint  file_list_click_handle (GtkTreeView *treeview1,GtkTreePath *path, GtkTreeV
 		gchar *name;
 		gchar *icon;
 		gtk_tree_model_get(model1, &iter, COLUMN_NAME, &name,COLUMN_ICON, &icon, -1); 
-		g_print ("Double-clicked %s\n", name);		
+		//g_print ("Double-clicked %s\n", name);		
 		const char* old_path = gtk_entry_get_text(path_entry);
             if( strcmp(icon,"folder") == 0)
             {
@@ -709,6 +753,75 @@ void back_btn_clicked(GtkButton* back_btn, gpointer data){
     gtk_editable_delete_text((GtkEditable*)path_entry, start_pos, -1);
     create_model((GtkEntry*)(path_entry));
 	gtk_tree_view_set_model(GTK_TREE_VIEW(treeview), GTK_TREE_MODEL(store));
+}
+
+void btn_getcommit_clicked(GtkButton* btn_getcommit, gpointer data){
+	GtkEntry* path_entry = (GtkEntry*)data;
+	const char* old_path = gtk_entry_get_text(path_entry);
+	char whole_path[200];
+	strcpy(whole_path,old_path);
+	strcat(whole_path,select_object);
+	ReplaceStr(whole_path,homepath,"");
+	loginfo.operation=3;//Checkout
+	strcpy(loginfo.query_object,whole_path);
+	//printf("user operation is checkout\n");
+	printf("select target:%s\n",loginfo.query_object);
+	SSL_write(ssl,&loginfo,sizeof(loginfo));
+	memset((char*)revsion, 0, sizeof(version_info)*10);
+	SSL_read(ssl, (char*)revsion, sizeof(version_info)*10);
+	gtk_combo_box_text_remove_all ((GtkComboBoxText *)combo);
+	gtk_combo_box_text_prepend ((GtkComboBoxText *)combo, NULL,"File/Directory Modified Timestamp");
+	int i;
+		for (i=0;i<10;i++){
+	/*
+	    if (strlen(revsion[i].commit_sha)) printf ("commit_sha:%s\n",revsion[i].commit_sha);
+	    if (strlen(revsion[i].author)) printf ("author:%s\n",revsion[i].author);
+		
+	    if (strlen(revsion[i].message)) printf ("message:%s\n",revsion[i].message);
+	*/
+		if (strlen(revsion[i].date)) printf ("date%i:%s\n",i,revsion[i].date);
+		if ( strlen(revsion[i].date))
+		{	
+			gtk_combo_box_text_append  ((GtkComboBoxText *)combo, NULL,revsion[i].date);
+		}
+	}
+}
+
+void btn_checkout_clicked(GtkButton* btn_checkout, gpointer data){
+	const char *timestamp = gtk_combo_box_text_get_active_text ((GtkComboBoxText *)combo);
+	printf("selct time:%s\n",timestamp);
+	printf("select target:%s\n",select_object);
+}
+
+void  on_selection_changed(GtkWidget *widget, gpointer data) {
+	GtkTreeIter iter;
+	GtkTreeModel *model;
+	//memset(&select_object, 0, sizeof(select_object) );
+	if (gtk_tree_selection_get_selected(GTK_TREE_SELECTION(widget), &model, &iter)) 
+	{
+		gtk_tree_model_get(model, &iter, COLUMN_NAME, &select_object,  -1);
+	}
+}
+
+int ReplaceStr(char *sSrc, char *sMatchStr, char *sReplaceStr){
+        int  StringLen;
+        char caNewString[1000];
+
+        char *FindPos = strstr(sSrc, sMatchStr);
+        if( (!FindPos) || (!sMatchStr) )
+                return -1;
+        while( FindPos )
+        {
+                memset(caNewString, 0, sizeof(caNewString));
+                StringLen = FindPos - sSrc;
+                strncpy(caNewString, sSrc, StringLen);
+                strcat(caNewString, sReplaceStr);
+                strcat(caNewString, FindPos + strlen(sMatchStr));
+                strcpy(sSrc, caNewString);
+
+                FindPos = strstr(sSrc, sMatchStr);
+        }
+        return 0;
 }
 
 int main (int argc, char *argv[]){

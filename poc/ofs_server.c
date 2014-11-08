@@ -24,19 +24,32 @@ typedef struct {
 	char username[100];
 	char password[100];
 	char directory[200];
-	char operation[10];
+	char query_object[200];
+	int operation;
 } reginfo;
 
+typedef struct {
+  char  commit_sha[50];
+  char  author[50];
+  char  date[50];
+  char  message[50];
+} version_info;
+
 reginfo userinfo;  
+version_info revsion[10];
 git_repository *repo = NULL;
 int create_user(char *username, char *password, char *directory );
 int create_repository(char *username);
+
 static void create_initial_commit(git_repository *repo,char *username);
+int get_commit_time(char *username,char *filename);
+
 int main(){  
 		FILE *fp;
 		char dirfile[100];
 		char *localdir;
 		SSL_CTX *ctx;
+		int n;
 
 		SSL_library_init();/* SSL 库初始化 */
 		
@@ -47,24 +60,24 @@ int main(){
 		ctx = SSL_CTX_new(SSLv23_server_method());/* 以 SSL V2 和 V3 标准兼容方式产生一个 SSL_CTX ，即 SSL Content Text */
 		
 		if (ctx == NULL) {
-		ERR_print_errors_fp(stdout);
-		exit(1);
+			ERR_print_errors_fp(stdout);
+			exit(1);
 		}/* 也可以用 SSLv2_server_method() 或 SSLv3_server_method() 单独表示 V2 或 V3标准 */
 		
 		
 		if (SSL_CTX_use_certificate_file(ctx, "cacert.pem", SSL_FILETYPE_PEM) <= 0) {
-		ERR_print_errors_fp(stdout);
-		exit(1);
+			ERR_print_errors_fp(stdout);
+			exit(1);
 		}/* 载入用户的数字证书， 此证书用来发送给客户端。 证书里包含有公钥 */
 		
 		if (SSL_CTX_use_PrivateKey_file(ctx, "privkey.pem", SSL_FILETYPE_PEM) <= 0) {
-		ERR_print_errors_fp(stdout);
-		exit(1);
+			ERR_print_errors_fp(stdout);
+			exit(1);
 		}/* 载入用户私钥 */
 		
 		if (!SSL_CTX_check_private_key(ctx)) {
-		ERR_print_errors_fp(stdout);
-		exit(1);
+			ERR_print_errors_fp(stdout);
+			exit(1);
 		}/* 检查用户私钥是否正确 */
 		
 		
@@ -89,6 +102,7 @@ int main(){
         while(1){
 				SSL *ssl;
 				int length;
+				char message[100]; 
                 int client_fd = accept(sd, NULL, NULL);  
                 if(client_fd == -1) oops("accept");  
 				
@@ -103,40 +117,59 @@ int main(){
 					break;
 				}
 							
-                char message[100]; 
+
 				while(1)
 				{	
-					SSL_read(ssl, &userinfo, sizeof(userinfo));
-					if ( strcmp(userinfo.operation,"LOGIN") == 0 )
-					{	
-						memset(dirfile, 0, sizeof(dirfile) );
-						sprintf(dirfile,"/home/%s/.dirfile",userinfo.username);
-						printf("User %s try to login...\n",userinfo.username);
-						fp = fopen(dirfile,"rb");
-						if (fp)
-						{
-							fseek (fp, 0, SEEK_END);
-							length = ftell (fp);
-							fseek (fp, 0, SEEK_SET);
-							localdir = malloc (length + 1);
-							memset(localdir, 0, length+1);
-							if (localdir)
-							{
-								fread (localdir, 1, length, fp);
-							}
-							fclose (fp);
-						}
-						printf("user local directory is:%s\n",localdir);
-						SSL_write(ssl, localdir, strlen(localdir));
-					}
-					else if( strcmp(userinfo.operation,"REG") == 0 )
+					//memset(&userinfo, 0, sizeof(userinfo));
+					n = SSL_read(ssl, &userinfo, sizeof(userinfo));
+					if(n == -1)
 					{
-						printf("message is:%s\n",userinfo.username);
-						printf("Passowrd:%s\n",userinfo.password);
-						printf("Directory:%s\n",userinfo.directory);
-						create_user(userinfo.username,userinfo.password,userinfo.directory);
-						create_repository(userinfo.username);
-						create_initial_commit(repo,userinfo.username);
+						perror("fail to read");
+						exit(1);
+						close(sd);
+					}
+					else if(n == 0)
+					{
+						printf("Connection Closed!\n");
+						close(sd);
+						exit(1);
+					}
+					switch( userinfo.operation ) 
+					{
+						case 1:
+							memset(dirfile, 0, sizeof(dirfile) );
+							sprintf(dirfile,"/home/%s/.dirfile",userinfo.username);
+							printf("User %s try to login...\n",userinfo.username);
+							fp = fopen(dirfile,"rb");
+							if (fp)
+							{
+								fseek (fp, 0, SEEK_END);
+								length = ftell (fp);
+								fseek (fp, 0, SEEK_SET);
+								localdir = malloc (length + 1);
+								memset(localdir, 0, length+1);
+								if (localdir)
+								{
+									fread (localdir, 1, length, fp);
+								}
+								fclose (fp);
+							}
+							printf("user local directory is:%s\n",localdir);
+							SSL_write(ssl, localdir, strlen(localdir));
+							break;
+						case 2:
+							printf("Username is:%s\n",userinfo.username);
+							printf("Passowrd:%s\n",userinfo.password);
+							printf("Directory:%s\n",userinfo.directory);
+							create_user(userinfo.username,userinfo.password,userinfo.directory);
+							create_repository(userinfo.username);
+							create_initial_commit(repo,userinfo.username);
+							break;
+						case 3:
+							printf("QUERY OBJECT IS:%s\n",userinfo.query_object);
+							get_commit_time(userinfo.username,userinfo.query_object);
+							SSL_write(ssl, (char*)revsion, sizeof(version_info)*10);
+							break;
 					}
 				}
         }  
@@ -245,4 +278,58 @@ static void create_initial_commit(git_repository *repo,char *username){
 	
 	git_tree_free(tree);
 	git_signature_free(sig);
+}
+
+int get_commit_time(char *username,char *filename)
+{
+    FILE *pf;
+    char command[200];
+    char data[5000];
+	int i=0;
+	memset( data, '\0', sizeof(data) );
+    sprintf(command, "git -C /home/%s log %s",username,filename);
+	//printf("%s\n",command);
+    pf = popen(command,"r");
+    if(!pf){
+      fprintf(stderr, "Could not open pipe for output.\n");
+      return;
+    }
+	fread( data, sizeof(char), sizeof(data), pf); 
+	
+	char * line;
+	//printf ("Splitting data......\n");
+	line = strtok (data,"\n");
+	memset(&revsion, 0, sizeof(version_info));
+	while (line != NULL && i < 10)
+	{	
+		strncpy(revsion[i].commit_sha,line+7,strlen(line));
+		//printf ("commit_sha:%s\n",revsion[i].commit_sha);
+
+		line = strtok (NULL, "\n");
+		strcpy(revsion[i].author,line);
+		//printf ("author:%s\n",revsion[i].author);
+		
+		line = strtok (NULL, "\n");
+		strncpy(revsion[i].date,line+7,35);
+		//printf ("date:%s\n",revsion[i].date);
+		
+		line = strtok (NULL, "\n");
+		strcpy(revsion[i].message,line);
+		//printf ("message:%s\n",revsion[i].message);
+		
+		line = strtok (NULL, "\n");
+		i++;
+		printf("\n");
+	}
+	
+	for (i=0;i<10;i++){
+	    if (strlen(revsion[i].commit_sha)) printf ("commit_sha%d:%s\n",i,revsion[i].commit_sha);
+	    if (strlen(revsion[i].author)) printf ("author%d:%s\n",i,revsion[i].author);
+	    if (strlen(revsion[i].date)) printf ("date%d:%s\n",i,revsion[i].date);
+	    if (strlen(revsion[i].message)) printf ("message%d:%s\n",i,revsion[i].message);
+	}
+	
+	if (pclose(pf) != 0)
+    fprintf(stderr," Error: Failed to close command stream \n");
+    return 0;
 }
