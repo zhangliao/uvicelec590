@@ -11,8 +11,8 @@ gtkex.c : The GUI of the main file manager window. This is the GTK2.0 codes, now
 
 Formal Codes:
 elec590_ofs : The anjuta project directory used to generate the main windows of the OFS client GUI.The latest version combine the main wi
-ndow with the assistant window (for the register process), also the login and file viewer can work now. The file viewer can get the timestamp of every file and do a file rollback.Both the push and pull file functions can works.
-ofs_server.c : The main server that can handle the elec590_ofs client's request. The latest version support multiply clients and the support to deal with theclient's push and pull file requests.
+ndow with the assistant window (for the register process), also the login and file viewer can work now. The file viewer can get the timestamp of every file and do a file rollback.
+ofs_server.c : The main server that can handle the elec590_ofs client's request. The latest version support multiply clients now.
 
 Please use anjuta to open and compile the elec590_ofs. Remember to remove all the files under the Debug directory before compile and run.
 Use the under command to compile the ofs_server:

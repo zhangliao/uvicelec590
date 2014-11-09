@@ -90,6 +90,7 @@ reginfo userinfo;
 reginfo loginfo;
 version_info revsion[10];
 SSL *ssl;
+int sd;
 static GtkWidget *file_window = NULL;
 static GtkTreeModel *model = NULL;
 static guint timeout = 0;
@@ -117,7 +118,10 @@ void btn_resync_clicked(GtkButton* btn_resync, gpointer data);
 void  on_selection_changed(GtkWidget *widget, gpointer data);
 int ReplaceStr(char *sSrc, char *sMatchStr, char *sReplaceStr);
 gint  file_list_click_handle (GtkTreeView *treeview,GtkTreePath *path, GtkTreeViewColumn  *col,gpointer userdata);
-
+void set_fl(int fd, int flags);
+void clr_fl(int fd, int flags);
+void pullfile(char whole_path[200]);
+void pushfile(char whole_path[200]);
 enum{ 
 	COLUMN_ICON,
 	COLUMN_NAME,
@@ -795,11 +799,19 @@ void btn_checkout_clicked(GtkButton* btn_checkout, gpointer data){
 }
 
 void btn_resync_clicked(GtkButton* btn_resync, gpointer data){
-	printf("Resync ALL!!!!!\n");
+
+	pushfile("/home/liaoz/uvicelec590/poc/TESTFILE");
+	//pullfile("/home/liaoz/uvicelec590/poc/TESTFILE");
+}
+
+void pushfile(char whole_path[200])
+{
+	printf("PUSH FILE!\n");
 	char buffer[2048]; 
 	char transfile[200];
-	strcpy(transfile,"README");
-	FILE *fd = fopen("/home/liaoz/uvicelec590/poc/README", "r");
+	strcpy(transfile,whole_path);
+	ReplaceStr(transfile,homepath,"");
+	FILE *fd = fopen(whole_path, "r");
 	loginfo.operation=5;//send file
 	SSL_write(ssl,&loginfo,sizeof(loginfo));
 	SSL_write(ssl,transfile,strlen(transfile));
@@ -810,12 +822,42 @@ void btn_resync_clicked(GtkButton* btn_resync, gpointer data){
             printf("file_block_length = %d\n", file_block_length);   
             if (SSL_write(ssl, buffer, file_block_length) < 0)  
             {  
-                printf("Send File:\t%s Failed!\n", "/home/liaoz/uvicelec590/poc/README");  
+                printf("Send File Failed!\n");  
                 break;  
             }    
             bzero(buffer, sizeof(buffer));  
         } 
 	printf("File send!\n");
+}
+
+void pullfile(char whole_path[200])
+{
+	printf("PULL FILE!\n");
+	char buffer[2048]; 
+	char transfile[200];
+	strcpy(transfile,whole_path);
+	ReplaceStr(transfile,homepath,"");
+	loginfo.operation=6;//PULL file
+	SSL_write(ssl,&loginfo,sizeof(loginfo));
+	SSL_write(ssl,transfile,strlen(transfile));
+	printf("pull file is:%s\n",transfile);
+	int fd = open(whole_path, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR);  					
+	if(fd == -1) oops("open");  			
+	ssize_t length; 
+	while(1)
+	{  
+		length = SSL_read(ssl, buffer, sizeof(buffer));		
+		//printf("Recv length is:%d",(int)length);
+		if ( length == -1 )
+		{	
+			clr_fl(sd, O_NONBLOCK);
+			break;
+		}
+		else set_fl(sd, O_NONBLOCK); 
+		write(fd, buffer, length); 
+	}   
+	close(fd);
+	//printf("Gotta File!\n");
 }
 
 void  on_selection_changed(GtkWidget *widget, gpointer data) {
@@ -849,6 +891,32 @@ int ReplaceStr(char *sSrc, char *sMatchStr, char *sReplaceStr){
         return 0;
 }
 
+void set_fl(int fd, int flags) /* flags are file status flags to turn on */
+{
+        int     val;
+
+        if ((val = fcntl(fd, F_GETFL, 0)) < 0)
+                printf("fcntl F_GETFL error\n");
+
+        val |= flags;       /* turn on flags */
+
+        if (fcntl(fd, F_SETFL, val) < 0)
+                printf("fcntl F_SETFL error\n");
+}
+
+void clr_fl(int fd, int flags) /* flags are file status flags to turn off */
+{
+        int     val;
+
+        if ((val = fcntl(fd, F_GETFL, 0)) < 0)
+                printf("fcntl F_GETFL error\n");
+
+        val &= ~flags;      /* turn flags off */
+
+        if (fcntl(fd, F_SETFL, val) < 0)
+                printf("fcntl F_SETFL error\n");
+}
+
 int main (int argc, char *argv[]){
  	GtkWidget *window;
 	#ifdef ENABLE_NLS
@@ -859,7 +927,7 @@ int main (int argc, char *argv[]){
 	gtk_init (&argc, &argv);
 	window = create_window ();
 	gtk_widget_show (window);
-	int sd = socket(PF_INET, SOCK_STREAM, 0);  
+	sd = socket(PF_INET, SOCK_STREAM, 0);  
     if(sd == -1) oops("socket");  
     struct sockaddr_in address;  
     bzero(&address, sizeof(address));  

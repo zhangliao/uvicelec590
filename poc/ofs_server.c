@@ -134,7 +134,7 @@ int main(){
 						printf("operation is:%d\n",userinfo.operation);
 						switch( userinfo.operation ) 
 						{
-							case 1:
+							case 1:/*User Login*/
 								memset(dirfile, 0, sizeof(dirfile) );
 								sprintf(dirfile,"/home/%s/.dirfile",userinfo.username);
 								printf("User %s try to login...\n",userinfo.username);
@@ -155,7 +155,7 @@ int main(){
 								printf("user local directory is:%s\n",localdir);
 								SSL_write(ssl, localdir, strlen(localdir));
 								break;
-							case 2:
+							case 2:/*New user registration*/
 								printf("Username is:%s\n",userinfo.username);
 								printf("Passowrd:%s\n",userinfo.password);
 								printf("Directory:%s\n",userinfo.directory);
@@ -163,15 +163,15 @@ int main(){
 								create_repository(userinfo.username);
 								create_initial_commit(repo,userinfo.username);
 								break;
-							case 3:
+							case 3:/*Query a file's commit SHA*/
 								printf("QUERY OBJECT IS:%s\n",userinfo.query_object);
 								get_commit_time(userinfo.username,userinfo.query_object);
 								SSL_write(ssl, (char*)revsion, sizeof(version_info)*10);
 								break;
-							case 4:
+							case 4:/*Rollback a file*/
 								checkout(userinfo.query_object,userinfo.commit_sha);
 								break;
-							case 5:
+							case 5:/*get a file from client to server*/
 								n = SSL_read(ssl, filename, sizeof(filename));
 								filename[n]='\0';
 								printf("file name:%s\n",filename);
@@ -179,22 +179,42 @@ int main(){
 								printf("file path:%s\n",filePath);								
 								int fd = open(filePath, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR);  
 								if(fd == -1) oops("open");  			
-								ssize_t length; 
-								set_fl(client_fd, O_NONBLOCK); 
+								ssize_t length; 								
 								while(1)
 								{  
-									length = SSL_read(ssl, buff, sizeof(buff));
-									//printf("length is:%d\n",(int)length);									
+									length = SSL_read(ssl, buff, sizeof(buff));									
 									if ( length == -1 )
 									{	
 										clr_fl(client_fd, O_NONBLOCK);
 										break;
 									}
+									else set_fl(client_fd, O_NONBLOCK); 
 									write(fd, buff, length); 
 								}   
 								close(fd);
 								printf("File write finished!\n");
-								break;								
+								break;
+							case 6:/*Send a file from server to client*/
+								n = SSL_read(ssl, filename, sizeof(filename));
+								filename[n]='\0';
+								sprintf(filePath, "/home/%s/%s", userinfo.username,filename); 
+								printf("Writing to:%s\n",filePath);								
+								FILE *fd1 = fopen(filePath, "r");  			 
+								int file_block_length = 0; 
+								while( (file_block_length = fread(buff, sizeof(char), 2048, fd1)) > 0)  
+									{  
+										//printf("file_block_length = %d\n", file_block_length);   
+										if (SSL_write(ssl, buff, file_block_length) < 0)  
+										{  
+											printf("Send File:\t%s Failed!\n", "/home/liaoz/uvicelec590/poc/README");  
+											break;  
+										}    
+										bzero(buff, sizeof(buff));  
+									} 
+								//printf("File send!\n");	
+								break;	
+							case 7:/*Compare file difference between server and client(Wait yuejiao to add codes*/
+								break;
 						}
 					}
 					close(client_fd);
