@@ -12,11 +12,15 @@
 #include <arpa/inet.h>  
 #include <sys/stat.h>  
 #include <fcntl.h>  
+#include <sys/stat.h>
 #include <time.h>  
+#include <utime.h>
 #include <signal.h>
 #include <errno.h>  
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include "create_full_directory.h" 
+#include "recur_list_file.h" 
 #define oops(msg) { perror(msg); exit(errno); }  
 typedef struct {
 	char username[100];
@@ -44,6 +48,15 @@ int get_commit_time(char *username,char *filename);
 static void checkout(char filename[], char commit_sha[]);
 void set_fl(int fd, int flags);
 void clr_fl(int fd, int flags);
+file_info *recur_list_file(char *input_dir);
+file_info single_file;
+char  buffer[10];
+struct tm tm;
+time_t t1,t2;
+struct stat foo;
+time_t mtime;
+struct utimbuf new_times;
+
 int main(){  
 		FILE *fp;
 		char dirfile[100];
@@ -95,9 +108,16 @@ int main(){
 				char message[100]; 
 				char filename[100];  
 				char filePath[100];	
-				char buff[2048];  				
+				char buff[2048];
+				char user_dir[100];
+				char filetime[100];								
                 int client_fd = accept(sd, NULL, NULL); 
-				int error,status=0;			
+				int error,status=0;	
+				file_info file_item_server[10];
+				file_info  *file_tmp_ptr;
+				int num = 0;
+				int i = 0;
+				int size = 0;
                 if(client_fd == -1) oops("accept");  							
 				/* 基于 ctx 产生一个新的 SSL */
 				ssl = SSL_new(ctx);
@@ -137,6 +157,7 @@ int main(){
 							case 1:/*User Login*/
 								memset(dirfile, 0, sizeof(dirfile) );
 								sprintf(dirfile,"/home/%s/.dirfile",userinfo.username);
+								sprintf(user_dir,"/home/%s",userinfo.username);
 								printf("User %s try to login...\n",userinfo.username);
 								fp = fopen(dirfile,"rb");
 								if (fp)
@@ -176,7 +197,8 @@ int main(){
 								filename[n]='\0';
 								printf("file name:%s\n",filename);
 								sprintf(filePath, "/home/%s/%s", userinfo.username,filename); 
-								printf("file path:%s\n",filePath);								
+								printf("file path:%s\n",filePath);
+								create_full_directory(filePath);
 								int fd = open(filePath, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR);  
 								if(fd == -1) oops("open");  			
 								ssize_t length; 								
@@ -212,8 +234,50 @@ int main(){
 										bzero(buff, sizeof(buff));  
 									} 
 								//printf("File send!\n");	
+								fclose(fd1);
 								break;	
-							case 7:/*Compare file difference between server and client(Wait yuejiao to add codes*/
+							case 7:/*Get the file tree walk from server*/
+
+								n = SSL_read(ssl, filename,100);
+								n = SSL_read(ssl, filetime,100);								
+								printf("File is %s\n",filename);
+								printf("Time is %s\n",filetime);
+								strptime(filetime, "%a %b %d %H:%M:%S %Y", &tm);
+								time_t t1 = mktime(&tm);
+								printf("t1 is %d\n",t1);
+								stat(filename, &foo);
+								mtime = foo.st_mtime;
+								new_times.modtime = t1;
+								new_times.actime = t1;
+								utime(filename,&new_times);
+								// file_tmp_ptr = recur_list_file(user_dir);
+								// memset((char*)file_item_server, 0, sizeof(file_info)*10);
+								// memcpy((char*)file_item_server, (char *)file_tmp_ptr, sizeof(file_info)*10 );
+								// int z=3,k;
+								// for(k=0;k<z;k++){
+								    // for (i=0;i<200;i++)
+									// {
+									    // if (file_item_server[k].filename[i] == '\0')
+										    // file_item_server[k].filename[i]  = 0;
+									// }
+									// SSL_write(ssl, (char*)(file_item_server[k].filename), 200);
+									
+									// for (i=0;i<100;i++)
+									// {
+									    // if (file_item_server[k].filetime[i] == '\0')
+										    // file_item_server[k].filetime[i]  = 0;
+									// }
+									// SSL_write(ssl, (char*)(file_item_server[k].filetime), 100);
+									
+									// printf("%s\n",file_item_server[k].filename);
+									// printf("%s\n",file_item_server[k].filetime);
+									// printf("%d\n",file_item_server[k].filenum);
+								// //	SSL_write(ssl, (char*)(&file_item_server[k]), sizeof(file_info));
+								// }
+		
+								// //num = SSL_write(ssl, (char*)file_item_server, sizeof(file_info)*10);
+								
+								
 								break;
 						}
 					}
@@ -342,7 +406,7 @@ int get_commit_time(char *username,char *filename){
 	int i=0;
 	memset( data, '\0', sizeof(data) );
     sprintf(command, "git -C /home/%s log %s",username,filename);
-	//printf("%s\n",command);
+	printf("%s\n",command);
     pf = popen(command,"r");
     if(!pf){
       fprintf(stderr, "Could not open pipe for output.\n");
@@ -368,7 +432,7 @@ int get_commit_time(char *username,char *filename){
 		printf("\n");
 	}
 	if (pclose(pf) != 0)
-    fprintf(stderr," Error: Failed to close command stream \n");
+		//fprintf(stderr," Error: Failed to close command stream \n");
     return 0;
 }
 

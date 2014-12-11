@@ -619,7 +619,8 @@ elec590_ofs-main.o: /home/liaoz/elec590_ofs/src/main.c \
  /usr/include/openssl/srtp.h /usr/include/openssl/err.h \
  /usr/include/libssh/libssh.h /usr/include/inttypes.h \
  /usr/include/netdb.h /usr/include/rpc/netdb.h \
- /usr/include/x86_64-linux-gnu/bits/netdb.h /usr/include/libssh/legacy.h
+ /usr/include/x86_64-linux-gnu/bits/netdb.h /usr/include/libssh/legacy.h \
+ /home/liaoz/elec590_ofs/src/recur_list_file.h /usr/include/ftw.h
 
 /usr/include/stdc-predef.h:
 
@@ -2028,3 +2029,7 @@ elec590_ofs-main.o: /home/liaoz/elec590_ofs/src/main.c \
 /usr/include/x86_64-linux-gnu/bits/netdb.h:
 
 /usr/include/libssh/legacy.h:
+
+/home/liaoz/elec590_ofs/src/recur_list_file.h:
+
+/usr/include/ftw.h:

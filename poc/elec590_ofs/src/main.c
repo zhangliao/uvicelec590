@@ -42,6 +42,7 @@
 #include <errno.h>
 #include <string.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include "recur_list_file.h" 
 typedef struct {
 	GtkWidget *widget;
 	gint index;
@@ -122,6 +123,12 @@ void set_fl(int fd, int flags);
 void clr_fl(int fd, int flags);
 void pullfile(char whole_path[200]);
 void pushfile(char whole_path[200]);
+void modifytime(file_info single_file);
+file_info *recur_list_file(char *input_dir);
+int first_sync (char * user_dir);
+int all_sync (char * user_dir);
+struct tm tm;
+time_t t1,t2;
 enum{ 
 	COLUMN_ICON,
 	COLUMN_NAME,
@@ -200,7 +207,8 @@ static void	button_clicked (GtkButton *button, GtkAssistant *assistant){
 		printf("user operation is:%d\n",userinfo.operation);
 		SSL_write(ssl,&userinfo,sizeof(userinfo));
 		gtk_widget_set_sensitive (GTK_WIDGET (button), FALSE);
-		progress = GTK_PROGRESS_BAR (g_object_get_data (G_OBJECT (page), "pbar"));	
+		progress = GTK_PROGRESS_BAR (g_object_get_data (G_OBJECT (page), "pbar"));
+
 		while (percent <= 100.0)
 		{
 			gchar *message = g_strdup_printf ("%.0f%% Complete", percent);
@@ -799,14 +807,12 @@ void btn_checkout_clicked(GtkButton* btn_checkout, gpointer data){
 }
 
 void btn_resync_clicked(GtkButton* btn_resync, gpointer data){
-
-	pushfile("/home/liaoz/uvicelec590/poc/TESTFILE");
-	//pullfile("/home/liaoz/uvicelec590/poc/TESTFILE");
+	all_sync (homepath);
 }
 
 void pushfile(char whole_path[200])
 {
-	printf("PUSH FILE!\n");
+	// printf("PUSH FILE!\n");
 	char buffer[2048]; 
 	char transfile[200];
 	strcpy(transfile,whole_path);
@@ -819,15 +825,17 @@ void pushfile(char whole_path[200])
 	int file_block_length = 0; 
 	while( (file_block_length = fread(buffer, sizeof(char), 2048, fd)) > 0)  
         {  
-            printf("file_block_length = %d\n", file_block_length);   
+            // printf("file_block_length = %d\n", file_block_length);   
             if (SSL_write(ssl, buffer, file_block_length) < 0)  
             {  
                 printf("Send File Failed!\n");  
                 break;  
             }    
             bzero(buffer, sizeof(buffer));  
-        } 
-	printf("File send!\n");
+        }
+	printf("%s send!\n",whole_path);
+	fclose (fd);
+
 }
 
 void pullfile(char whole_path[200])
@@ -836,6 +844,7 @@ void pullfile(char whole_path[200])
 	char buffer[2048]; 
 	char transfile[200];
 	strcpy(transfile,whole_path);
+	printf("first pull file is:%s\n",transfile);
 	ReplaceStr(transfile,homepath,"");
 	loginfo.operation=6;//PULL file
 	SSL_write(ssl,&loginfo,sizeof(loginfo));
@@ -870,26 +879,6 @@ void  on_selection_changed(GtkWidget *widget, gpointer data) {
 	gtk_combo_box_text_remove_all ((GtkComboBoxText *)combo);
 }
 
-int ReplaceStr(char *sSrc, char *sMatchStr, char *sReplaceStr){
-        int  StringLen;
-        char caNewString[1000];
-
-        char *FindPos = strstr(sSrc, sMatchStr);
-        if( (!FindPos) || (!sMatchStr) )
-                return -1;
-        while( FindPos )
-        {
-                memset(caNewString, 0, sizeof(caNewString));
-                StringLen = FindPos - sSrc;
-                strncpy(caNewString, sSrc, StringLen);
-                strcat(caNewString, sReplaceStr);
-                strcat(caNewString, FindPos + strlen(sMatchStr));
-                strcpy(sSrc, caNewString);
-
-                FindPos = strstr(sSrc, sMatchStr);
-        }
-        return 0;
-}
 
 void set_fl(int fd, int flags) /* flags are file status flags to turn on */
 {
@@ -915,6 +904,139 @@ void clr_fl(int fd, int flags) /* flags are file status flags to turn off */
 
         if (fcntl(fd, F_SETFL, val) < 0)
                 printf("fcntl F_SETFL error\n");
+}
+
+int first_sync (char * user_dir){
+		// file_info *file_item;
+        // file_item=recur_list_file(user_dir);
+		// char temp_filename[200];
+		// int i=file_item[0].filenum;
+		// int j;
+		// for(j=0;j<i;j++){
+			// printf("%s\n",file_item[j].filename);
+			// pushfile(file_item[j].filename);
+			// sleep(1);
+		// }
+return 0;
+}
+
+int all_sync (char * user_dir){
+		char server_path[100];
+		sprintf(server_path,"/home/%s/",loginfo.username);
+		printf("client path is: %s\n",homepath);//client's path
+		printf("server path is: %s\n",server_path);
+		file_info file_array1[1024],file_array2[1024];
+		file_info A_to_B[1024];
+		file_info B_to_A[1024];
+        bzero(file_array1,sizeof(file_info)*1024);
+		bzero(file_array2,sizeof(file_info)*1024);
+		bzero(A_to_B,sizeof(file_info)*1024);
+		bzero(B_to_A,sizeof(file_info)*1024);
+		file_info *file_item_new = malloc(1024* sizeof(file_info));
+		file_item_new=recur_list_file(server_path);
+		
+		// int w=0;
+		// for(w=0;w<10;w++){
+			// printf("filename is :%s\n",file_item_new[w].filename);
+		// }
+		
+		
+		int i=file_item_new[0].filenum;//printf("i=%d\n",i);
+		int k;
+		for(k=0;k<i;k++){		
+			stpcpy(file_array1[k].filename,file_item_new[k].filename);
+			stpcpy(file_array1[k].filetime,file_item_new[k].filetime);
+		}  		
+		file_item_new=recur_list_file(homepath);
+		int j=file_item_new[0].filenum;//printf("j=%d\n",j);
+		for(k=i;k<j;k++){
+			stpcpy(file_array2[k-i].filename,file_item_new[k].filename);
+			stpcpy(file_array2[k-i].filetime,file_item_new[k].filetime);
+		}
+		int p=j-i,m,n,flag,A_to_B_index=0,B_to_A_index=0;
+		char temp_a[100],temp_b[100];
+		bzero(temp_a,sizeof(temp_a));
+		bzero(temp_b,sizeof(temp_b));
+		for(m=0;m<i;m++){
+			for(n=0;n<p;n++){
+				flag=0;
+				// printf("arry1:%s\n",file_array1[m].filename);
+				strcpy(temp_a,file_array1[m].filename);
+				// printf("ori temp_a:%s\n",temp_a);
+				ReplaceStr(temp_a,server_path,"");
+				strcpy(temp_b,file_array2[n].filename);
+				ReplaceStr(temp_b,homepath,"");
+				// printf("temp_a:%s\n",temp_a);
+				// printf("temp_b:%s\n",temp_b);
+				if(!strcmp(temp_a,temp_b)){
+					flag=1;
+					strptime(file_array1[m].filetime, "%a %b %d %H:%M:%S %Y", &tm);
+					time_t t1 = mktime(&tm);
+					strptime(file_array2[n].filetime, "%a %b %d %H:%M:%S %Y", &tm);
+					time_t t2 = mktime(&tm);					
+					if(difftime(t1,t2)>0){
+						strcpy(A_to_B[A_to_B_index].filename,file_array1[m].filename);
+						strcpy(A_to_B[A_to_B_index].filetime,file_array1[m].filetime);
+						A_to_B_index++;
+						}
+					break;
+				}			
+			}
+			if (flag == 0){
+				strcpy(A_to_B[A_to_B_index].filename,file_array1[m].filename);
+				strcpy(A_to_B[A_to_B_index].filetime,file_array1[m].filetime);
+				A_to_B_index++;
+			}
+		}
+		for(n=0;n<p;n++){
+			for(m=0;m<i;m++){
+				flag=0;
+				strcpy(temp_a,file_array1[m].filename);
+				ReplaceStr(temp_a,server_path,"");
+				strcpy(temp_b,file_array2[n].filename);
+				ReplaceStr(temp_b,homepath,"");
+				if(!strcmp(temp_a,temp_b)){
+					flag=1;
+					strptime(file_array1[m].filetime, "%a %b %d %H:%M:%S %Y", &tm);
+					time_t t1 = mktime(&tm);
+					strptime(file_array2[n].filetime, "%a %b %d %H:%M:%S %Y", &tm);
+					time_t t2 = mktime(&tm);					
+					if(difftime(t1,t2)<0){
+						strcpy(B_to_A[B_to_A_index].filename,file_array2[n].filename);
+						strcpy(B_to_A[B_to_A_index].filetime,file_array2[n].filetime);
+						B_to_A_index++;
+					}
+					break;
+				}				
+			}
+			if (flag == 0){
+				strcpy(B_to_A[B_to_A_index].filename,file_array2[n].filename);
+				strcpy(B_to_A[B_to_A_index].filetime,file_array2[n].filetime);
+				B_to_A_index++;
+			}
+		}
+		for(k=1;k<A_to_B_index;k++){//Server to Client
+			printf("A_to_B:%s\n",A_to_B[k].filename);
+			// pullfile(A_to_B[k]);
+			sleep(0.5);
+		}
+		for(k=0;k<B_to_A_index;k++){//Client to Server
+			printf("B_to_A:%s\n",B_to_A[k].filename);
+			pushfile(B_to_A[k].filename);
+			
+			sleep(1);
+			modifytime(B_to_A[k]);
+		}
+return 0;
+}
+
+void modifytime(file_info single_file){
+	loginfo.operation=7;//PULL file
+	SSL_write(ssl,&loginfo,sizeof(loginfo));
+	SSL_write(ssl,single_file.filename,100);
+	SSL_write(ssl,single_file.filetime,100);
+	printf("file name is %s",single_file.filename);
+	printf("file time  is %s",single_file.filetime);
 }
 
 int main (int argc, char *argv[]){
