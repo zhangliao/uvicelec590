@@ -45,14 +45,6 @@ static void add_and_commit(git_repository *repo)
 	git_signature_free(sig);
 }
 
-int main (int argc, char** argv)
-{   
-	git_repository *repo = NULL;
-	
-	if (git_repository_open(&repo,"/home/liaoz/testrep") < 0 )
-		printf("Unable to open the repository\n");
-	
-	add_and_commit(repo);
-}
+
 	
 	

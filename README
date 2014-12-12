@@ -17,3 +17,8 @@ ofs_server.c : The main server that can handle the elec590_ofs client's request.
 Please use anjuta to open and compile the elec590_ofs. Remember to remove all the files under the Debug directory before compile and run.
 Use the under command to compile the ofs_server:
 gcc -o ofs_server ofs_server.c -lssl -lcrypto `pkg-config --cflags --libs libgit2`
+
+
+#How to generate private key and certification
+openssl genrsa -out privkey.pem 2048
+openssl req -new -x509 -key privkey.pem -out cacert.pem -days 1095

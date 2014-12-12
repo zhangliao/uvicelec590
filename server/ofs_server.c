@@ -21,6 +21,7 @@
 #include <openssl/err.h>
 #include "create_full_directory.h" 
 #include "recur_list_file.h" 
+#include "addcommit.h"
 #define oops(msg) { perror(msg); exit(errno); }  
 typedef struct {
 	char username[100];
@@ -56,7 +57,6 @@ time_t t1,t2;
 struct stat foo;
 time_t mtime;
 struct utimbuf new_times;
-
 int main(){  
 		FILE *fp;
 		char dirfile[100];
@@ -118,6 +118,7 @@ int main(){
 				int num = 0;
 				int i = 0;
 				int size = 0;
+				char command[200];
                 if(client_fd == -1) oops("accept");  							
 				/* 基于 ctx 产生一个新的 SSL */
 				ssl = SSL_new(ctx);
@@ -193,12 +194,17 @@ int main(){
 								checkout(userinfo.query_object,userinfo.commit_sha);
 								break;
 							case 5:/*get a file from client to server*/
+								bzero(filetime,100);
+								char repo_path[100];
 								n = SSL_read(ssl, filename, sizeof(filename));
+								SSL_read(ssl, filetime, 100);
 								filename[n]='\0';
 								printf("file name:%s\n",filename);
 								sprintf(filePath, "/home/%s/%s", userinfo.username,filename); 
 								printf("file path:%s\n",filePath);
 								create_full_directory(filePath);
+								sprintf(command,"touch %s -d \"%s\"",filePath,filetime);
+								printf("%s\n",command);								
 								int fd = open(filePath, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR);  
 								if(fd == -1) oops("open");  			
 								ssize_t length; 								
@@ -214,13 +220,19 @@ int main(){
 									write(fd, buff, length); 
 								}   
 								close(fd);
+								system(command);
 								printf("File write finished!\n");
+								sprintf(repo_path,"/home/%s", userinfo.username);
+								if (git_repository_open(&repo, repo_path) < 0 )
+								printf("Unable to open the repository\n");
+								add_and_commit(repo);
+								printf("All files committed!\n");
 								break;
 							case 6:/*Send a file from server to client*/
 								n = SSL_read(ssl, filename, sizeof(filename));
 								filename[n]='\0';
 								sprintf(filePath, "/home/%s/%s", userinfo.username,filename); 
-								printf("Writing to:%s\n",filePath);								
+								printf("[DEBUG]Retrieve:%s\n",filePath);								
 								FILE *fd1 = fopen(filePath, "r");  			 
 								int file_block_length = 0; 
 								while( (file_block_length = fread(buff, sizeof(char), 2048, fd1)) > 0)  
@@ -237,47 +249,15 @@ int main(){
 								fclose(fd1);
 								break;	
 							case 7:/*Get the file tree walk from server*/
-
+								printf("[time filename]");
 								n = SSL_read(ssl, filename,100);
-								n = SSL_read(ssl, filetime,100);								
-								printf("File is %s\n",filename);
-								printf("Time is %s\n",filetime);
-								strptime(filetime, "%a %b %d %H:%M:%S %Y", &tm);
-								time_t t1 = mktime(&tm);
-								printf("t1 is %d\n",t1);
-								stat(filename, &foo);
-								mtime = foo.st_mtime;
-								new_times.modtime = t1;
-								new_times.actime = t1;
-								utime(filename,&new_times);
-								// file_tmp_ptr = recur_list_file(user_dir);
-								// memset((char*)file_item_server, 0, sizeof(file_info)*10);
-								// memcpy((char*)file_item_server, (char *)file_tmp_ptr, sizeof(file_info)*10 );
-								// int z=3,k;
-								// for(k=0;k<z;k++){
-								    // for (i=0;i<200;i++)
-									// {
-									    // if (file_item_server[k].filename[i] == '\0')
-										    // file_item_server[k].filename[i]  = 0;
-									// }
-									// SSL_write(ssl, (char*)(file_item_server[k].filename), 200);
-									
-									// for (i=0;i<100;i++)
-									// {
-									    // if (file_item_server[k].filetime[i] == '\0')
-										    // file_item_server[k].filetime[i]  = 0;
-									// }
-									// SSL_write(ssl, (char*)(file_item_server[k].filetime), 100);
-									
-									// printf("%s\n",file_item_server[k].filename);
-									// printf("%s\n",file_item_server[k].filetime);
-									// printf("%d\n",file_item_server[k].filenum);
-								// //	SSL_write(ssl, (char*)(&file_item_server[k]), sizeof(file_info));
-								// }
-		
-								// //num = SSL_write(ssl, (char*)file_item_server, sizeof(file_info)*10);
-								
-								
+								n = SSL_read(ssl, filetime,100);
+								printf("[time filename] is %s\n",filename);
+								sprintf(filePath, "/home/%s/%s", userinfo.username,filename); 
+								printf("latest file path:%s\n",filePath);								
+
+								printf("command is %s\n",command);
+								system(command);
 								break;
 						}
 					}

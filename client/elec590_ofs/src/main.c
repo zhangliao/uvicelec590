@@ -121,9 +121,10 @@ int ReplaceStr(char *sSrc, char *sMatchStr, char *sReplaceStr);
 gint  file_list_click_handle (GtkTreeView *treeview,GtkTreePath *path, GtkTreeViewColumn  *col,gpointer userdata);
 void set_fl(int fd, int flags);
 void clr_fl(int fd, int flags);
-void pullfile(char whole_path[200]);
-void pushfile(char whole_path[200]);
-void modifytime(file_info single_file);
+void pullfile(file_info server_file);
+void pushfile(file_info client_file);
+void modify_client_file_time(file_info single_file);
+void modify_server_file_time(file_info single_file);
 file_info *recur_list_file(char *input_dir);
 int first_sync (char * user_dir);
 int all_sync (char * user_dir);
@@ -758,11 +759,11 @@ void back_btn_clicked(GtkButton* back_btn, gpointer data){
     GtkEntry* path_entry = (GtkEntry*)data;
     gint start_pos;
     const char* old_path = gtk_entry_get_text(path_entry);
-    if(!strcmp(old_path, homepath))
-        return;
-    start_pos = calc_start_pos(old_path);
-    gtk_editable_delete_text((GtkEditable*)path_entry, start_pos, -1);
-    create_model((GtkEntry*)(path_entry));
+    if(strcmp(old_path, homepath)){
+		start_pos = calc_start_pos(old_path);
+		gtk_editable_delete_text((GtkEditable*)path_entry, start_pos, -1);
+	}
+	create_model((GtkEntry*)(path_entry));
 	gtk_tree_view_set_model(GTK_TREE_VIEW(treeview), GTK_TREE_MODEL(store));
 }
 
@@ -810,21 +811,21 @@ void btn_resync_clicked(GtkButton* btn_resync, gpointer data){
 	all_sync (homepath);
 }
 
-void pushfile(char whole_path[200])
-{
-	// printf("PUSH FILE!\n");
+void pushfile(file_info client_file)
+{   
+	// printf("[PUSHFILE]%s\n",client_file.filename);
 	char buffer[2048]; 
-	char transfile[200];
-	strcpy(transfile,whole_path);
-	ReplaceStr(transfile,homepath,"");
-	FILE *fd = fopen(whole_path, "r");
+	char clientside_name[200];
+	sprintf(clientside_name,"%s%s",homepath,client_file.filename);
+	// printf("[SERVERDIDE NAME]%s\n",clientside_name);
+	FILE *fd = fopen(clientside_name, "r");
 	loginfo.operation=5;//send file
 	SSL_write(ssl,&loginfo,sizeof(loginfo));
-	SSL_write(ssl,transfile,strlen(transfile));
-	//printf("trans file is:%s\n",transfile);
+	SSL_write(ssl,client_file.filename,strlen(client_file.filename));
+	SSL_write(ssl,client_file.filetime,100);
 	int file_block_length = 0; 
 	while( (file_block_length = fread(buffer, sizeof(char), 2048, fd)) > 0)  
-        {  
+         {  
             // printf("file_block_length = %d\n", file_block_length);   
             if (SSL_write(ssl, buffer, file_block_length) < 0)  
             {  
@@ -833,30 +834,29 @@ void pushfile(char whole_path[200])
             }    
             bzero(buffer, sizeof(buffer));  
         }
-	printf("%s send!\n",whole_path);
-	fclose (fd);
 
+	printf("[PUSHED]%s\n",client_file.filename);
+	fclose (fd);
 }
 
-void pullfile(char whole_path[200])
+void pullfile(file_info server_file)
 {
-	printf("PULL FILE!\n");
+	printf("[PULLFILE]%s\n",server_file.filename);
 	char buffer[2048]; 
-	char transfile[200];
-	strcpy(transfile,whole_path);
-	printf("first pull file is:%s\n",transfile);
-	ReplaceStr(transfile,homepath,"");
-	loginfo.operation=6;//PULL file
+	char clientside_name[200];
+	char command[200];
+	sprintf(clientside_name,"%s%s",homepath,server_file.filename);
+	sprintf(command,"touch %s -d \"%s\"",clientside_name,server_file.filetime);
+	printf("[clientside Name]%s\n",clientside_name);
+	loginfo.operation=6;
 	SSL_write(ssl,&loginfo,sizeof(loginfo));
-	SSL_write(ssl,transfile,strlen(transfile));
-	printf("pull file is:%s\n",transfile);
-	int fd = open(whole_path, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR);  					
+	SSL_write(ssl,server_file.filename,strlen(server_file.filename));
+	int fd = open(clientside_name, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);  					
 	if(fd == -1) oops("open");  			
 	ssize_t length; 
 	while(1)
 	{  
 		length = SSL_read(ssl, buffer, sizeof(buffer));		
-		//printf("Recv length is:%d",(int)length);
 		if ( length == -1 )
 		{	
 			clr_fl(sd, O_NONBLOCK);
@@ -865,8 +865,9 @@ void pullfile(char whole_path[200])
 		else set_fl(sd, O_NONBLOCK); 
 		write(fd, buffer, length); 
 	}   
-	close(fd);
-	//printf("Gotta File!\n");
+	close (fd);
+	printf("[command]%s\n",command);
+	system(command);
 }
 
 void  on_selection_changed(GtkWidget *widget, gpointer data) {
@@ -907,136 +908,171 @@ void clr_fl(int fd, int flags) /* flags are file status flags to turn off */
 }
 
 int first_sync (char * user_dir){
-		// file_info *file_item;
-        // file_item=recur_list_file(user_dir);
-		// char temp_filename[200];
-		// int i=file_item[0].filenum;
-		// int j;
-		// for(j=0;j<i;j++){
-			// printf("%s\n",file_item[j].filename);
-			// pushfile(file_item[j].filename);
-			// sleep(1);
-		// }
 return 0;
 }
 
 int all_sync (char * user_dir){
+		int k,m,n,flag,A_to_B_index=0,B_to_A_index=0;
 		char server_path[100];
-		sprintf(server_path,"/home/%s/",loginfo.username);
-		printf("client path is: %s\n",homepath);//client's path
-		printf("server path is: %s\n",server_path);
-		file_info file_array1[1024],file_array2[1024];
-		file_info A_to_B[1024];
-		file_info B_to_A[1024];
-        bzero(file_array1,sizeof(file_info)*1024);
-		bzero(file_array2,sizeof(file_info)*1024);
-		bzero(A_to_B,sizeof(file_info)*1024);
-		bzero(B_to_A,sizeof(file_info)*1024);
-		file_info *file_item_new = malloc(1024* sizeof(file_info));
-		file_item_new=recur_list_file(server_path);
-		
-		// int w=0;
-		// for(w=0;w<10;w++){
-			// printf("filename is :%s\n",file_item_new[w].filename);
-		// }
-		
-		
-		int i=file_item_new[0].filenum;//printf("i=%d\n",i);
-		int k;
-		for(k=0;k<i;k++){		
-			stpcpy(file_array1[k].filename,file_item_new[k].filename);
-			stpcpy(file_array1[k].filetime,file_item_new[k].filetime);
-		}  		
-		file_item_new=recur_list_file(homepath);
-		int j=file_item_new[0].filenum;//printf("j=%d\n",j);
-		for(k=i;k<j;k++){
-			stpcpy(file_array2[k-i].filename,file_item_new[k].filename);
-			stpcpy(file_array2[k-i].filetime,file_item_new[k].filetime);
-		}
-		int p=j-i,m,n,flag,A_to_B_index=0,B_to_A_index=0;
+		char client_path[100];
 		char temp_a[100],temp_b[100];
 		bzero(temp_a,sizeof(temp_a));
 		bzero(temp_b,sizeof(temp_b));
-		for(m=0;m<i;m++){
-			for(n=0;n<p;n++){
-				flag=0;
-				// printf("arry1:%s\n",file_array1[m].filename);
-				strcpy(temp_a,file_array1[m].filename);
-				// printf("ori temp_a:%s\n",temp_a);
-				ReplaceStr(temp_a,server_path,"");
-				strcpy(temp_b,file_array2[n].filename);
-				ReplaceStr(temp_b,homepath,"");
-				// printf("temp_a:%s\n",temp_a);
-				// printf("temp_b:%s\n",temp_b);
-				if(!strcmp(temp_a,temp_b)){
-					flag=1;
-					strptime(file_array1[m].filetime, "%a %b %d %H:%M:%S %Y", &tm);
-					time_t t1 = mktime(&tm);
-					strptime(file_array2[n].filetime, "%a %b %d %H:%M:%S %Y", &tm);
-					time_t t2 = mktime(&tm);					
-					if(difftime(t1,t2)>0){
-						strcpy(A_to_B[A_to_B_index].filename,file_array1[m].filename);
-						strcpy(A_to_B[A_to_B_index].filetime,file_array1[m].filetime);
-						A_to_B_index++;
-						}
-					break;
-				}			
-			}
-			if (flag == 0){
-				strcpy(A_to_B[A_to_B_index].filename,file_array1[m].filename);
-				strcpy(A_to_B[A_to_B_index].filetime,file_array1[m].filetime);
-				A_to_B_index++;
-			}
+		bzero(client_path,sizeof(client_path));
+		bzero(server_path,sizeof(server_path));
+		strcpy(client_path,homepath);
+		sprintf(server_path,"/home/%s/",loginfo.username);
+		// printf("client path is: %s\n",homepath);//client's path
+		// printf("server path is: %s\n",server_path);
+		file_info server_files[1024],client_files[1024];
+		file_info A_to_B[1024];
+		file_info B_to_A[1024];
+        bzero(server_files,sizeof(file_info)*1024);
+		bzero(client_files,sizeof(file_info)*1024);
+		bzero(A_to_B,sizeof(file_info)*1024);
+		bzero(B_to_A,sizeof(file_info)*1024);
+		file_info *file_objects;
+		
+		file_objects=recur_list_file(server_path);
+		int i=files_number;
+		// printf("Server Files Numbers:%d\n",i);
+		// for(k=0;k<i;k++){
+			// printf("Files on Servers:%s\n",file_objects[k].filename);
+		// }
+		for(k=0;k<i;k++){	
+			ReplaceStr(file_objects[k].filename,server_path,"");		
+			stpcpy(server_files[k].filename,file_objects[k].filename);
+			stpcpy(server_files[k].filetime,file_objects[k].filetime);
+		}  		
+		// for(k=0;k<i;k++){
+			// printf("Files on Servers:%s,%s\n",server_files[k].filename,server_files[k].filetime);
+		// }
+		
+		file_objects=recur_list_file(client_path);
+		int j=files_number;
+		// printf("Clients Files Numbers:%d\n",j);
+		// for(k=0;k<j;k++){
+			// printf("Files on Clients:%s\n",file_objects[k].filename);
+		// }
+		for(k=0;k<j;k++){
+			ReplaceStr(file_objects[k].filename,client_path,"");
+			stpcpy(client_files[k].filename,file_objects[k].filename);
+			stpcpy(client_files[k].filetime,file_objects[k].filetime);
 		}
-		for(n=0;n<p;n++){
+		// for(k=0;k<j;k++){
+			// printf("Files on Clients:%s,%s\n",client_files[k].filename,client_files[k].filetime);
+		// }
+
+		printf("At initialization:i=%d,j=%d,A_to_B_index=%d,B_to_A_index=%d\n",i,j,A_to_B_index,B_to_A_index);
+		
+		/*i:file numbers on servers, j:file numbers on clients*/
+		if(i==0 && j==0){/*Both Server and Clients have on files, do nothing.*/
+			// printf("Both Client and Server are empty folders, nothing to sync!\n");
+		}	
+		else if(i==0){/*Only Client has files*/
+			// printf("Only Client has %d files!\n",j);
+			for(k=0;k<j;k++){
+				strcpy(B_to_A[k].filename,client_files[k].filename);
+				strcpy(B_to_A[k].filetime,client_files[k].filetime);
+			}
+			B_to_A_index=j;
+		}
+		else if(j==0){/*Only Server has files*/
+			// printf("Only Server has %d files!\n",i);
+			for(k=0;k<i;k++){
+				strcpy(A_to_B[k].filename,server_files[k].filename);
+				strcpy(A_to_B[k].filetime,server_files[k].filetime);
+				}
+			A_to_B_index=i;
+		}
+		else{
+			// printf("Both server and client have files, do compare!\n");
+			printf("Before compare:i=%d,j=%d,A_to_B_index=%d,B_to_A_index=%d\n",i,j,A_to_B_index,B_to_A_index);
 			for(m=0;m<i;m++){
 				flag=0;
-				strcpy(temp_a,file_array1[m].filename);
-				ReplaceStr(temp_a,server_path,"");
-				strcpy(temp_b,file_array2[n].filename);
-				ReplaceStr(temp_b,homepath,"");
-				if(!strcmp(temp_a,temp_b)){
-					flag=1;
-					strptime(file_array1[m].filetime, "%a %b %d %H:%M:%S %Y", &tm);
-					time_t t1 = mktime(&tm);
-					strptime(file_array2[n].filetime, "%a %b %d %H:%M:%S %Y", &tm);
-					time_t t2 = mktime(&tm);					
-					if(difftime(t1,t2)<0){
-						strcpy(B_to_A[B_to_A_index].filename,file_array2[n].filename);
-						strcpy(B_to_A[B_to_A_index].filetime,file_array2[n].filetime);
-						B_to_A_index++;
-					}
-					break;
-				}				
+					// printf("server_files[%d]:%s\n",m,server_files[m].filename);
+				for(n=0;n<j;n++){
+					// printf("client_files[%d]:%s\n",n,client_files[n].filename);
+					if(!strcmp(server_files[m].filename,client_files[n].filename)){
+						// printf("Same file name:%s,compare time!\n",server_files[m].filename);
+						strptime(server_files[m].filetime, "%a %b %d %H:%M:%S %Y", &tm);
+						time_t t1 = mktime(&tm);
+						strptime(client_files[n].filetime, "%a %b %d %H:%M:%S %Y", &tm);
+						time_t t2 = mktime(&tm);					
+						if(difftime(t1,t2)>0){
+							// printf("server_files is newer!:%s\n",server_files[m].filename);
+							strcpy(A_to_B[A_to_B_index].filename,server_files[m].filename);
+							strcpy(A_to_B[A_to_B_index].filetime,server_files[m].filetime);
+							A_to_B_index++;
+						}
+						else if(difftime(t1,t2)<0){
+							// printf("client_files is newer!:%s\n",client_files[n].filename);
+							strcpy(B_to_A[B_to_A_index].filename,client_files[n].filename);
+							strcpy(B_to_A[B_to_A_index].filetime,client_files[n].filetime);
+							B_to_A_index++;
+						}
+						else{
+							// printf("The timestampe is same for file:%s, do nothing!\n",server_files[m].filename);
+						}
+						flag=1;
+						break;
+					}/*Name is same*/
+				}
+				if(flag==0){
+					// printf("Server file is outstand:%s\n",server_files[m].filename);					
+					strcpy(A_to_B[A_to_B_index].filename,server_files[m].filename);
+					strcpy(A_to_B[A_to_B_index].filetime,server_files[m].filetime);
+					A_to_B_index++;					
+				}
 			}
-			if (flag == 0){
-				strcpy(B_to_A[B_to_A_index].filename,file_array2[n].filename);
-				strcpy(B_to_A[B_to_A_index].filetime,file_array2[n].filetime);
-				B_to_A_index++;
-			}
-		}
-		for(k=1;k<A_to_B_index;k++){//Server to Client
-			printf("A_to_B:%s\n",A_to_B[k].filename);
-			// pullfile(A_to_B[k]);
-			sleep(0.5);
-		}
-		for(k=0;k<B_to_A_index;k++){//Client to Server
-			printf("B_to_A:%s\n",B_to_A[k].filename);
-			pushfile(B_to_A[k].filename);
 			
-			sleep(1);
-			modifytime(B_to_A[k]);
+			for(n=0;n<j;n++){
+				flag=0;
+					// printf("server_files[%d]:%s\n",m,server_files[m].filename);
+				for(m=0;m<i;m++){
+					// printf("client_files[%d]:%s\n",n,client_files[n].filename);
+					if(!strcmp(server_files[m].filename,client_files[n].filename)){
+						flag=1;
+						break;	
+					}
+				}
+				if(flag==0){
+					// printf("Client file is outstand:%s\n",client_files[n].filename);					
+					strcpy(B_to_A[B_to_A_index].filename,client_files[n].filename);
+					strcpy(B_to_A[B_to_A_index].filetime,client_files[n].filetime);
+					B_to_A_index++;					
+				}
+			}
 		}
-return 0;
-}
+		printf("After compare:i=%d,j=%d,A_to_B_index=%d,B_to_A_index=%d\n",i,j,A_to_B_index,B_to_A_index);		
+		
+		// for(k=0;k<j;k++){
+			// printf("List files(short) on clients:%s\n",client_files[k].filename);
+		// }
+		for(k=0;k<A_to_B_index;k++){
+			printf("[S->C]%s,%s\n",A_to_B[k].filename,A_to_B[k].filetime);
+		}		
 
-void modifytime(file_info single_file){
-	loginfo.operation=7;//PULL file
-	SSL_write(ssl,&loginfo,sizeof(loginfo));
-	SSL_write(ssl,single_file.filename,100);
-	SSL_write(ssl,single_file.filetime,100);
-	printf("file name is %s",single_file.filename);
-	printf("file time  is %s",single_file.filetime);
+		for(k=0;k<B_to_A_index;k++){
+			printf("[C->S]%s,%s\n",B_to_A[k].filename,B_to_A[k].filetime);
+		}
+		/*The above code is right!*/		
+		
+		/*Push file from server to client*/
+		for(k=0;k<A_to_B_index;k++){
+			printf("[Pull S->C]%s\n",A_to_B[k].filename);
+			pullfile(A_to_B[k]);
+			sleep(1);
+		}
+		
+		/*Push file from client to server*/
+		for(k=0;k<B_to_A_index;k++){
+			printf("[Push C->S]%s\n",B_to_A[k].filename);
+			pushfile(B_to_A[k]);			
+			sleep(1);
+		}
+		
+		// return 0;
 }
 
 int main (int argc, char *argv[]){
